@@ -32,6 +32,7 @@ export default function Play() {
   const [orderQty, setOrderQty] = useState('');
   const [orderMsg, setOrderMsg] = useState('');
   const [ordering, setOrdering] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const pollRef = useRef(null);
 
   const loadTeams = useCallback(async () => {
@@ -78,6 +79,11 @@ export default function Play() {
     }
   }, [profile?.team_id, picking, loadSeat, loadPlay]);
 
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   async function submit() {
     setError('');
     if (!name.trim()) { setError('Please enter your name.'); return; }
@@ -108,6 +114,9 @@ export default function Play() {
   if (seat && play && play.status === 'running') {
     const myTurn = play.is_my_turn;
     const ordered = play.my_order != null;
+    const remaining = play.phase_ends_at
+      ? Math.max(0, Math.ceil((new Date(play.phase_ends_at).getTime() - now) / 1000))
+      : null;
     return (
       <main style={{ ...center, alignItems: 'flex-start' }}>
         <div style={{ maxWidth: 560, width: '100%' }}>
@@ -116,7 +125,10 @@ export default function Play() {
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Round {play.current_round} / {play.total_rounds}</div>
           </div>
           <h1 style={{ fontSize: 28, margin: '0 0 2px', fontWeight: 700 }}>{play.my_role}</h1>
-          <div style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 18 }}>{PHASE_LABEL[play.phase] || play.phase}</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 18 }}>
+            {PHASE_LABEL[play.phase] || play.phase}
+            {remaining != null && <span style={{ color: 'var(--accent)', fontWeight: 600, marginLeft: 8 }}>· {remaining}s</span>}
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
             <Stat label="On-hand inventory" value={play.inventory} />
@@ -146,7 +158,7 @@ export default function Play() {
             ) : myTurn ? (
               <>
                 <div style={{ fontSize: 14, marginBottom: 8 }}>
-                  Your turn — how many units do you order from the <strong>{UPSTREAM[play.my_role]}</strong>?
+                  Your turn{remaining != null ? ` — ${remaining}s left` : ''} — how many units do you order from the <strong>{UPSTREAM[play.my_role]}</strong>?
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <input className="input" type="number" min="0" value={orderQty}
