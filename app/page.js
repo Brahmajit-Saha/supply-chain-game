@@ -34,14 +34,24 @@ export default function Login() {
     setLoading(true);
     const creds = { email: cleanEmail, password };
 
+    // Existing account? sign in against their stored password.
     const { error: signInError } = await supabase.auth.signInWithPassword(creds);
 
     if (signInError) {
+      // New account — the password must match the one required for this
+      // email's role (MA / Table Admin / player), or we don't create it.
+      const { data: ok, error: chkErr } = await supabase.rpc('password_matches', {
+        p_email: cleanEmail,
+        p_password: password,
+      });
+      if (chkErr) { setError(chkErr.message); setLoading(false); return; }
+      if (!ok) { setError('Incorrect password for this account.'); setLoading(false); return; }
+
       const { error: signUpError } = await supabase.auth.signUp(creds);
       if (signUpError) {
         const msg = (signUpError.message || '').toLowerCase();
         if (msg.includes('already registered')) {
-          setError('That email exists, but the password is incorrect.');
+          setError('That account exists, but the password is incorrect.');
         } else if (msg.includes(ALLOWED_DOMAIN) || msg.includes('allowed')) {
           setError(`Please use your @${ALLOWED_DOMAIN} email address.`);
         } else {
@@ -71,12 +81,8 @@ export default function Login() {
       }}
     >
       <div style={{ width: '100%', maxWidth: 380 }}>
-        <div className="eyebrow" style={{ marginBottom: 12, textAlign: 'center' }}>
-          OPSPHERE · MBA Event
-        </div>
-        <h1 style={{ fontSize: 30, margin: '0 0 6px', textAlign: 'center', fontWeight: 700 }}>
-          Supply Chain Simulation
-        </h1>
+        <div className="eyebrow" style={{ marginBottom: 12, textAlign: 'center' }}>OPSPHERE · MBA Event</div>
+        <h1 style={{ fontSize: 30, margin: '0 0 6px', textAlign: 'center', fontWeight: 700 }}>Supply Chain Simulation</h1>
         <p style={{ color: 'var(--text-muted)', margin: '0 0 28px', textAlign: 'center', fontSize: 15 }}>
           Sign in to take your seat.
         </p>
@@ -84,34 +90,21 @@ export default function Login() {
         <form onSubmit={handleLogin}>
           <label style={labelStyle}>Email</label>
           <input
-            className="input"
-            type="email"
-            value={email}
+            className="input" type="email" value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={`you@${ALLOWED_DOMAIN}`}
-            autoComplete="email"
-            required
+            placeholder={`you@${ALLOWED_DOMAIN}`} autoComplete="email" required
           />
 
           <label style={{ ...labelStyle, marginTop: 16 }}>Password</label>
           <input
-            className="input"
-            type="password"
-            value={password}
+            className="input" type="password" value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Shared event password"
-            autoComplete="current-password"
-            required
+            placeholder="Event password" autoComplete="current-password" required
           />
 
           {error && <div className="error-box" style={{ marginTop: 16 }}>{error}</div>}
 
-          <button
-            className="btn btn-primary"
-            type="submit"
-            disabled={loading}
-            style={{ width: '100%', marginTop: 24 }}
-          >
+          <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: 24 }}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
