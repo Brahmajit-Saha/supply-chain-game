@@ -38,7 +38,7 @@ body::before {
   background-repeat: no-repeat;
   background-position: center;
   background-size: min(680px, 78vw);
-  opacity: 0.08;
+  opacity: 0.1;
   pointer-events: none;
   z-index: -1;
 }
