@@ -50,63 +50,32 @@ export default function Home() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        boxSizing: 'border-box',
       }}
     >
       <div style={{ width: '100%', maxWidth: 460, textAlign: 'center' }}>
-        {loading && <p style={{ color: '#9198a1' }}>Loading…</p>}
+        {loading && <p style={{ color: 'var(--text-muted)' }}>Loading…</p>}
 
         {!loading && error && (
-          <p style={{ color: '#f85149' }}>Couldn’t load your profile: {error}</p>
+          <p style={{ color: 'var(--danger)' }}>Couldn’t load your profile: {error}</p>
         )}
 
         {!loading && profile && (
           <>
-            <div
-              style={{
-                fontSize: 12,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                color: '#7d8590',
-                marginBottom: 12,
-              }}
-            >
-              Signed in
-            </div>
+            <div className="eyebrow" style={{ marginBottom: 12 }}>Signed in</div>
             <h1 style={{ fontSize: 28, margin: '0 0 6px', fontWeight: 700 }}>
               {ROLE_LABEL[profile.system_role] || profile.system_role}
             </h1>
-            <p style={{ color: '#9198a1', margin: '0 0 28px' }}>{profile.email}</p>
+            <p style={{ color: 'var(--text-muted)', margin: '0 0 28px' }}>{profile.email}</p>
 
             <div
-              style={{
-                border: '1px solid #30363d',
-                background: '#161b22',
-                borderRadius: 12,
-                padding: '18px 20px',
-                color: '#9198a1',
-                fontSize: 14,
-                marginBottom: 24,
-              }}
+              className="card"
+              style={{ padding: '18px 20px', color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}
             >
               Your dashboard is being built next. This screen confirms that login,
               your role, and the database security rules are all working.
             </div>
 
-            <button
-              onClick={logout}
-              style={{
-                padding: '10px 18px',
-                borderRadius: 8,
-                border: '1px solid #30363d',
-                background: 'transparent',
-                color: '#e6edf3',
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              Sign out
-            </button>
+            <button className="btn-ghost" onClick={logout}>Sign out</button>
           </>
         )}
       </div>

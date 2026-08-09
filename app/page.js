@@ -14,7 +14,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
-  // If already logged in, skip the form.
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) router.replace('/home');
@@ -35,11 +34,9 @@ export default function Login() {
     setLoading(true);
     const creds = { email: cleanEmail, password };
 
-    // First try to sign in as an existing user.
     const { error: signInError } = await supabase.auth.signInWithPassword(creds);
 
     if (signInError) {
-      // Not an existing user (or wrong password) — try to create the account.
       const { error: signUpError } = await supabase.auth.signUp(creds);
       if (signUpError) {
         const msg = (signUpError.message || '').toLowerCase();
@@ -60,6 +57,8 @@ export default function Login() {
 
   if (checkingSession) return null;
 
+  const labelStyle = { fontSize: 13, color: 'var(--text-muted)', display: 'block', marginBottom: 6 };
+
   return (
     <main
       style={{
@@ -69,106 +68,54 @@ export default function Login() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        boxSizing: 'border-box',
       }}
     >
       <div style={{ width: '100%', maxWidth: 380 }}>
-        <div
-          style={{
-            fontSize: 12,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            color: '#7d8590',
-            marginBottom: 12,
-            textAlign: 'center',
-          }}
-        >
-          Operations Club · MBA Event
+        <div className="eyebrow" style={{ marginBottom: 12, textAlign: 'center' }}>
+          OPSPHERE · MBA Event
         </div>
         <h1 style={{ fontSize: 30, margin: '0 0 6px', textAlign: 'center', fontWeight: 700 }}>
           Supply Chain Simulation
         </h1>
-        <p style={{ color: '#9198a1', margin: '0 0 28px', textAlign: 'center', fontSize: 15 }}>
+        <p style={{ color: 'var(--text-muted)', margin: '0 0 28px', textAlign: 'center', fontSize: 15 }}>
           Sign in to take your seat.
         </p>
 
         <form onSubmit={handleLogin}>
-          <label style={{ fontSize: 13, color: '#9198a1', display: 'block', marginBottom: 6 }}>
-            Email
-          </label>
+          <label style={labelStyle}>Email</label>
           <input
+            className="input"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={`you@${ALLOWED_DOMAIN}`}
             autoComplete="email"
             required
-            style={inputStyle}
           />
 
-          <label
-            style={{ fontSize: 13, color: '#9198a1', display: 'block', margin: '16px 0 6px' }}
-          >
-            Password
-          </label>
+          <label style={{ ...labelStyle, marginTop: 16 }}>Password</label>
           <input
+            className="input"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Shared event password"
             autoComplete="current-password"
             required
-            style={inputStyle}
           />
 
-          {error && (
-            <div
-              style={{
-                marginTop: 16,
-                color: '#f85149',
-                background: 'rgba(248,81,73,0.1)',
-                border: '1px solid rgba(248,81,73,0.3)',
-                borderRadius: 8,
-                padding: '10px 12px',
-                fontSize: 14,
-              }}
-            >
-              {error}
-            </div>
-          )}
+          {error && <div className="error-box" style={{ marginTop: 16 }}>{error}</div>}
 
-          <button type="submit" disabled={loading} style={buttonStyle(loading)}>
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={loading}
+            style={{ width: '100%', marginTop: 24 }}
+          >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>
     </main>
   );
-}
-
-const inputStyle = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '11px 12px',
-  borderRadius: 8,
-  border: '1px solid #30363d',
-  background: '#0d1117',
-  color: '#e6edf3',
-  fontSize: 15,
-  outline: 'none',
-};
-
-function buttonStyle(loading) {
-  return {
-    width: '100%',
-    marginTop: 24,
-    padding: '12px',
-    borderRadius: 8,
-    border: 'none',
-    background: loading ? '#1f6feb88' : '#1f6feb',
-    color: 'white',
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: loading ? 'default' : 'pointer',
-  };
 }

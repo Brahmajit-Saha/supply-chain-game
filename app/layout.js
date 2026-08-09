@@ -1,20 +1,16 @@
+import './globals.css';
+import Header from './components/Header';
+
 export const metadata = {
-  title: 'Supply Chain Simulation',
-  description: 'Operations Club MBA event',
+  title: 'OPSPHERE · Supply Chain Simulation',
+  description: 'OPSPHERE — Operations Club, IBS',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          minHeight: '100vh',
-          fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-          background: '#0d1117',
-          color: '#e6edf3',
-        }}
-      >
+      <body>
+        <Header />
         {children}
         <footer
           style={{
@@ -26,7 +22,7 @@ export default function RootLayout({ children }) {
             padding: '12px',
             fontSize: '13px',
             letterSpacing: '0.02em',
-            color: '#6e7781',
+            color: 'var(--text-muted)',
           }}
         >
           Built by Brahmajit Saha
