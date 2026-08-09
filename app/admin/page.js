@@ -1,11 +1,21 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
 
 const EMPTY_TEAMS = [{ name: '' }, { name: '' }, { name: '' }, { name: '' }];
 const ROLES = ['Retailer', 'Wholesaler', 'Distributor', 'Factory'];
+const PHASE_LABEL = {
+  arrivals_resolved: 'Arrivals resolved',
+  demand_revealed: 'Demand revealed',
+  strategy: 'Strategy (thinking)',
+  ordering_retailer: 'Ordering — Retailer',
+  ordering_wholesaler: 'Ordering — Wholesaler',
+  ordering_distributor: 'Ordering — Distributor',
+  ordering_factory: 'Ordering — Factory',
+  resolved: 'Round resolved',
+};
 
 export default function Admin() {
   const router = useRouter();
@@ -24,6 +34,12 @@ export default function Admin() {
   const [overview, setOverview] = useState([]);
   const [generating, setGenerating] = useState(false);
   const [seatMsg, setSeatMsg] = useState('');
+
+  const [control, setControl] = useState(null);
+  const [grid, setGrid] = useState([]);
+  const [engineBusy, setEngineBusy] = useState(false);
+  const [engineMsg, setEngineMsg] = useState('');
+  const pollRef = useRef(null);
 
   const loadTables = useCallback(async () => {
     const { data: gt } = await supabase
@@ -48,6 +64,13 @@ export default function Admin() {
     setOverview(data || []);
   }, []);
 
+  const loadEngine = useCallback(async () => {
+    const { data: ctrl } = await supabase.rpc('get_control');
+    setControl(ctrl && ctrl.length ? ctrl[0] : null);
+    const { data: g } = await supabase.rpc('get_admin_grid');
+    setGrid(g || []);
+  }, []);
+
   useEffect(() => {
     async function init() {
       const { data: sess } = await supabase.auth.getSession();
@@ -61,18 +84,22 @@ export default function Admin() {
       (existing || []).slice(0, 4).forEach((t, i) => { slots[i] = { id: t.id, name: t.name }; });
       setTeams(slots);
 
-      await loadTables();
-      await loadCounts();
-      await loadOverview();
+      await loadTables(); await loadCounts(); await loadOverview(); await loadEngine();
       setLoading(false);
     }
     init();
-  }, [router, loadTables, loadCounts, loadOverview]);
+  }, [router, loadTables, loadCounts, loadOverview, loadEngine]);
+
+  // Poll the live grid while the game is running.
+  useEffect(() => {
+    if (control?.status === 'running') {
+      pollRef.current = setInterval(() => { loadEngine(); }, 2000);
+      return () => clearInterval(pollRef.current);
+    }
+  }, [control?.status, loadEngine]);
 
   // ---- Teams ----
-  function setTeamName(i, val) {
-    setTeams((prev) => prev.map((t, idx) => (idx === i ? { ...t, name: val } : t)));
-  }
+  function setTeamName(i, val) { setTeams((p) => p.map((t, idx) => (idx === i ? { ...t, name: val } : t))); }
   async function saveTeams() {
     setSavingTeams(true); setTeamMsg('');
     try {
@@ -85,20 +112,16 @@ export default function Admin() {
           if (error) throw error;
         } else {
           const { data, error } = await supabase.from('team').insert({ name }).select('id').single();
-          if (error) throw error;
-          updated[i].id = data.id;
+          if (error) throw error; updated[i].id = data.id;
         }
       }
-      setTeams(updated); setTeamMsg('Teams saved.');
-      await loadCounts();
+      setTeams(updated); setTeamMsg('Teams saved.'); await loadCounts();
     } catch (e) { setTeamMsg('Error: ' + e.message); }
     setSavingTeams(false);
   }
 
   // ---- Table Admins ----
-  function setTaEmail(i, val) {
-    setTables((prev) => prev.map((t, idx) => (idx === i ? { ...t, ta_email: val } : t)));
-  }
+  function setTaEmail(i, val) { setTables((p) => p.map((t, idx) => (idx === i ? { ...t, ta_email: val } : t))); }
   async function saveTAs() {
     setSavingTAs(true); setTaMsg('');
     try {
@@ -110,61 +133,138 @@ export default function Admin() {
           throw error;
         }
       }
-      await loadTables();
-      setTaMsg('Table Admins saved.');
+      await loadTables(); setTaMsg('Table Admins saved.');
     } catch (e) { setTaMsg('Error: ' + e.message); }
     setSavingTAs(false);
   }
-  async function refreshStatus() {
-    setRefreshing(true); setTaMsg('');
-    await loadTables(); await loadCounts();
-    setRefreshing(false);
-  }
+  async function refreshStatus() { setRefreshing(true); setTaMsg(''); await loadTables(); await loadCounts(); setRefreshing(false); }
 
   // ---- Seating ----
   async function generateSeating() {
-    if (overview.length > 0 &&
-        !window.confirm('Seating already exists. Re-generating will reshuffle everyone. Continue?')) {
-      return;
-    }
+    if (overview.length > 0 && !window.confirm('Seating already exists. Re-generating will reshuffle everyone. Continue?')) return;
     setGenerating(true); setSeatMsg('');
     const { error } = await supabase.rpc('generate_seating');
     if (error) { setSeatMsg('Error: ' + error.message); setGenerating(false); return; }
-    await loadOverview();
-    setSeatMsg('Seating generated.');
-    setGenerating(false);
+    await loadOverview(); setSeatMsg('Seating generated.'); setGenerating(false);
+  }
+
+  // ---- Engine ----
+  async function startGame() {
+    if (control?.status !== 'setup' && !window.confirm('This will RESTART the game from round 1 and wipe current progress. Continue?')) return;
+    setEngineBusy(true); setEngineMsg('');
+    const { error } = await supabase.rpc('start_game');
+    if (error) setEngineMsg('Error: ' + error.message); else setEngineMsg('Game started.');
+    await loadEngine(); setEngineBusy(false);
+  }
+  async function advancePhase() {
+    setEngineBusy(true); setEngineMsg('');
+    const { error } = await supabase.rpc('advance_phase');
+    if (error) setEngineMsg('Error: ' + error.message);
+    await loadEngine(); setEngineBusy(false);
   }
 
   async function logout() { await supabase.auth.signOut(); router.replace('/'); }
 
-  if (loading) {
-    return <main style={wrap}><p style={{ color: 'var(--text-muted)' }}>Loading…</p></main>;
-  }
+  if (loading) return <main style={wrap}><p style={{ color: 'var(--text-muted)' }}>Loading…</p></main>;
 
-  // readiness
   const totalPlayers = teamCounts.reduce((s, t) => s + Number(t.member_count), 0);
   const fourFullTeams = teamCounts.length === 4 && teamCounts.every((t) => Number(t.member_count) === 4);
   const tasLoggedIn = tables.filter((t) => t.table_admin_id).length;
   const ready = fourFullTeams && tasLoggedIn === 4;
   const seated = overview.length > 0;
 
-  // pivot overview into role x table grid
-  const grid = {};
-  overview.forEach((r) => { grid[`${r.role}|${r.table_number}`] = r; });
+  const seatGrid = {};
+  overview.forEach((r) => { seatGrid[`${r.role}|${r.table_number}`] = r; });
+  const liveGrid = {};
+  grid.forEach((r) => { liveGrid[`${r.role}|${r.table_number}`] = r; });
+
+  const status = control?.status || 'setup';
 
   return (
     <main style={wrap}>
-      <div style={{ width: '100%', maxWidth: 720 }}>
+      <div style={{ width: '100%', maxWidth: 760 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
             <div className="eyebrow">Master Admin</div>
-            <h1 style={{ fontSize: 26, margin: '4px 0 0', fontWeight: 700 }}>Event setup</h1>
+            <h1 style={{ fontSize: 26, margin: '4px 0 0', fontWeight: 700 }}>Event control</h1>
           </div>
           <button className="btn-ghost" onClick={logout}>Sign out</button>
         </div>
 
-        {/* Teams */}
+        {/* Live game */}
         <div className="card" style={{ padding: 22 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <h2 style={cardTitle}>Live game</h2>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              {status === 'running' ? `Round ${control.current_round} / ${control.total_rounds}` : status === 'complete' ? 'Complete' : 'Not started'}
+            </span>
+          </div>
+
+          {status !== 'setup' && (
+            <div style={{ display: 'flex', gap: 18, alignItems: 'baseline', margin: '6px 0 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{PHASE_LABEL[control.phase] || control.phase || '—'}</div>
+              {control.current_demand != null && (
+                <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Customer demand: <strong style={{ color: 'var(--text)' }}>{control.current_demand}</strong></div>
+              )}
+            </div>
+          )}
+
+          <div style={actionRow}>
+            {status === 'setup' ? (
+              <button className="btn btn-primary" onClick={startGame} disabled={engineBusy || !seated} style={{ minWidth: 150, opacity: seated ? 1 : 0.5 }}>
+                {engineBusy ? 'Starting…' : 'Start game'}
+              </button>
+            ) : (
+              <>
+                <button className="btn btn-primary" onClick={advancePhase} disabled={engineBusy || status === 'complete'} style={{ minWidth: 150 }}>
+                  {engineBusy ? 'Working…' : 'Advance phase'}
+                </button>
+                <button className="btn-ghost" onClick={startGame} disabled={engineBusy}>Restart game</button>
+              </>
+            )}
+            <button className="btn-ghost" onClick={loadEngine}>Refresh</button>
+            {engineMsg && <span style={msgStyle(engineMsg)}>{engineMsg}</span>}
+          </div>
+          {!seated && status === 'setup' && (
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 10 }}>Generate seating below before starting.</p>
+          )}
+
+          {status !== 'setup' && grid.length > 0 && (
+            <div style={{ overflowX: 'auto', marginTop: 18 }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+                <thead>
+                  <tr><th style={th}></th>{[1, 2, 3, 4].map((n) => <th key={n} style={th}>Table {n}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {ROLES.map((role) => (
+                    <tr key={role}>
+                      <td style={{ ...td, color: 'var(--text-muted)', fontWeight: 600 }}>{role}</td>
+                      {[1, 2, 3, 4].map((n) => {
+                        const c = liveGrid[`${role}|${n}`];
+                        return (
+                          <td key={n} style={td}>
+                            {c ? (
+                              <div style={{ lineHeight: 1.5 }}>
+                                <span>Inv <strong>{c.inventory}</strong></span>{'  '}
+                                <span style={{ color: c.backlog > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>Back {c.backlog}</span>
+                                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                                  order {c.last_order == null ? '—' : c.last_order}
+                                </div>
+                              </div>
+                            ) : '—'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Teams */}
+        <div className="card" style={{ padding: 22, marginTop: 16 }}>
           <h2 style={cardTitle}>Teams</h2>
           <p style={cardSub}>Name the four teams. Players pick from these when they sign in.</p>
           {teams.map((t, i) => (
@@ -184,9 +284,7 @@ export default function Admin() {
         {/* Table Admins */}
         <div className="card" style={{ padding: 22, marginTop: 16 }}>
           <h2 style={cardTitle}>Table Admins</h2>
-          <p style={cardSub}>
-            Assign a TA email to each table. Change an email anytime — the previous person reverts to a player.
-          </p>
+          <p style={cardSub}>Assign a TA email to each table. Change an email anytime — the previous person reverts to a player.</p>
           {tables.map((t, i) => (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <div style={{ width: 62, color: 'var(--text-muted)', fontSize: 14 }}>Table {t.number}</div>
@@ -198,9 +296,7 @@ export default function Admin() {
             <button className="btn btn-primary" onClick={saveTAs} disabled={savingTAs} style={{ minWidth: 160 }}>
               {savingTAs ? 'Saving…' : 'Save Table Admins'}
             </button>
-            <button className="btn-ghost" onClick={refreshStatus} disabled={refreshing}>
-              {refreshing ? 'Refreshing…' : 'Refresh status'}
-            </button>
+            <button className="btn-ghost" onClick={refreshStatus} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh status'}</button>
             {taMsg && <span style={msgStyle(taMsg)}>{taMsg}</span>}
           </div>
         </div>
@@ -208,60 +304,29 @@ export default function Admin() {
         {/* Seating */}
         <div className="card" style={{ padding: 22, marginTop: 16 }}>
           <h2 style={cardTitle}>Seating</h2>
-          <p style={cardSub}>
-            When the room is ready, generate seating. Everyone&apos;s role, table, and TA appear on their screen at once.
-          </p>
-
+          <p style={cardSub}>When the room is ready, generate seating. Everyone&apos;s role, table, and TA appear on their screen at once.</p>
           <div style={{ display: 'grid', gap: 6, marginBottom: 16 }}>
             <Check ok={fourFullTeams} label={`Four teams of four (${totalPlayers}/16 players joined)`} />
             <Check ok={tasLoggedIn === 4} label={`Table Admins logged in (${tasLoggedIn}/4)`} />
           </div>
-
           <div style={actionRow}>
-            <button
-              className="btn btn-primary"
-              onClick={generateSeating}
-              disabled={generating || !ready}
-              style={{ minWidth: 170, opacity: ready ? 1 : 0.5 }}
-            >
+            <button className="btn btn-primary" onClick={generateSeating} disabled={generating || !ready} style={{ minWidth: 170, opacity: ready ? 1 : 0.5 }}>
               {generating ? 'Generating…' : seated ? 'Re-generate seating' : 'Generate seating'}
             </button>
-            <button className="btn-ghost" onClick={() => { loadOverview(); loadCounts(); loadTables(); }}>
-              Refresh
-            </button>
+            <button className="btn-ghost" onClick={() => { loadOverview(); loadCounts(); loadTables(); }}>Refresh</button>
             {seatMsg && <span style={msgStyle(seatMsg)}>{seatMsg}</span>}
           </div>
-          {!ready && (
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 10 }}>
-              The button unlocks once both checks above are green.
-            </p>
-          )}
-
           {seated && (
             <div style={{ overflowX: 'auto', marginTop: 18 }}>
               <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-                <thead>
-                  <tr>
-                    <th style={th}></th>
-                    {[1, 2, 3, 4].map((n) => <th key={n} style={th}>Table {n}</th>)}
-                  </tr>
-                </thead>
+                <thead><tr><th style={th}></th>{[1, 2, 3, 4].map((n) => <th key={n} style={th}>Table {n}</th>)}</tr></thead>
                 <tbody>
                   {ROLES.map((role) => (
                     <tr key={role}>
                       <td style={{ ...td, color: 'var(--text-muted)', fontWeight: 600 }}>{role}</td>
                       {[1, 2, 3, 4].map((n) => {
-                        const cell = grid[`${role}|${n}`];
-                        return (
-                          <td key={n} style={td}>
-                            {cell ? (
-                              <>
-                                <div>{cell.player_name}</div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{cell.team_name}</div>
-                              </>
-                            ) : '—'}
-                          </td>
-                        );
+                        const cell = seatGrid[`${role}|${n}`];
+                        return <td key={n} style={td}>{cell ? (<><div>{cell.player_name}</div><div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{cell.team_name}</div></>) : '—'}</td>;
                       })}
                     </tr>
                   ))}
@@ -283,12 +348,9 @@ function Check({ ok, label }) {
     </div>
   );
 }
-
 function statusBadge(t) {
   if (!t.ta_email) return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>—</span>;
-  if (t.admin) {
-    return <span style={{ color: 'var(--success)', fontSize: 13 }}>✓ logged in{t.admin.name ? ` · ${t.admin.name}` : ''}</span>;
-  }
+  if (t.admin) return <span style={{ color: 'var(--success)', fontSize: 13 }}>✓ logged in{t.admin.name ? ` · ${t.admin.name}` : ''}</span>;
   return <span style={{ color: '#d29922', fontSize: 13 }}>waiting for login</span>;
 }
 
