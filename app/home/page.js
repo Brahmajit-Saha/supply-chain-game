@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
 
 const ROLE_LABEL = {
-  MA: 'Master Admin',
   TableAdmin: 'Table Admin',
   Player: 'Player',
   Unassigned: 'Player — not yet on a team',
@@ -29,8 +28,16 @@ export default function Home() {
         .select('email, system_role')
         .eq('id', sess.session.user.id)
         .single();
-      if (error) setError(error.message);
-      else setProfile(data);
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+      if (data.system_role === 'MA') {
+        router.replace('/admin');
+        return;
+      }
+      setProfile(data);
       setLoading(false);
     }
     load();
