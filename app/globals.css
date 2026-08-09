@@ -28,6 +28,21 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* Faded OPSPHERE watermark, centered behind all content.
+   Change the opacity value below (0.06) to make it fainter or bolder. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url('/logo.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(680px, 78vw);
+  opacity: 0.06;
+  pointer-events: none;
+  z-index: -1;
+}
+
 /* ---- shared bits reused across pages ---- */
 .eyebrow {
   font-size: 12px;
