@@ -40,6 +40,7 @@ export default function Admin() {
   const [engineBusy, setEngineBusy] = useState(false);
   const [engineMsg, setEngineMsg] = useState('');
   const pollRef = useRef(null);
+  const [now, setNow] = useState(Date.now());
 
   const loadTables = useCallback(async () => {
     const { data: gt } = await supabase
@@ -97,6 +98,11 @@ export default function Admin() {
       return () => clearInterval(pollRef.current);
     }
   }, [control?.status, loadEngine]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // ---- Teams ----
   function setTeamName(i, val) { setTeams((p) => p.map((t, idx) => (idx === i ? { ...t, name: val } : t))); }
@@ -179,6 +185,9 @@ export default function Admin() {
   grid.forEach((r) => { liveGrid[`${r.role}|${r.table_number}`] = r; });
 
   const status = control?.status || 'setup';
+  const maRemaining = control?.phase_ends_at
+    ? Math.max(0, Math.ceil((new Date(control.phase_ends_at).getTime() - now) / 1000))
+    : null;
 
   return (
     <main style={wrap}>
@@ -202,7 +211,12 @@ export default function Admin() {
 
           {status !== 'setup' && (
             <div style={{ display: 'flex', gap: 18, alignItems: 'baseline', margin: '6px 0 14px' }}>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{PHASE_LABEL[control.phase] || control.phase || '—'}</div>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>
+                {PHASE_LABEL[control.phase] || control.phase || '—'}
+                {maRemaining != null && status === 'running' && (
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)', marginLeft: 10 }}>{maRemaining}s</span>
+                )}
+              </div>
               {control.current_demand != null && (
                 <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Customer demand: <strong style={{ color: 'var(--text)' }}>{control.current_demand}</strong></div>
               )}
