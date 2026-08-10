@@ -111,7 +111,8 @@ export default function Play() {
   if (loading) return <main style={center}><p style={{ color: 'var(--text-muted)' }}>Loading…</p></main>;
 
   // ===== In-game dashboard =====
-  if (seat && play && play.status === 'running') {
+  if (seat && play && (play.status === 'running' || play.status === 'paused')) {
+    const paused = play.status === 'paused';
     const myTurn = play.is_my_turn;
     const ordered = play.my_order != null;
     const remaining = play.phase_ends_at
@@ -127,7 +128,8 @@ export default function Play() {
           <h1 style={{ fontSize: 28, margin: '0 0 2px', fontWeight: 700 }}>{play.my_role}</h1>
           <div style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 18 }}>
             {PHASE_LABEL[play.phase] || play.phase}
-            {remaining != null && <span style={{ color: 'var(--accent)', fontWeight: 600, marginLeft: 8 }}>· {remaining}s</span>}
+            {!paused && remaining != null && <span style={{ color: 'var(--accent)', fontWeight: 600, marginLeft: 8 }}>· {remaining}s</span>}
+            {paused && <span style={{ color: '#d29922', fontWeight: 600, marginLeft: 8 }}>· Paused</span>}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
@@ -153,7 +155,9 @@ export default function Play() {
 
           {/* order box */}
           <div className="card" style={{ padding: 18 }}>
-            {ordered ? (
+            {paused ? (
+              <div style={{ color: '#d29922', fontSize: 14 }}>Game paused by the host. Ordering is frozen until it resumes.</div>
+            ) : ordered ? (
               <div style={{ color: 'var(--success)', fontSize: 15 }}>✓ Order placed: <strong>{play.my_order}</strong> units</div>
             ) : myTurn ? (
               <>
