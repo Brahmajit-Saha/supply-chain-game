@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
+import EventBanners from '../components/EventBanners';
 
 const EMPTY_TEAMS = [{ name: '' }, { name: '' }, { name: '' }, { name: '' }];
 const ROLES = ['Retailer', 'Wholesaler', 'Distributor', 'Factory'];
@@ -243,6 +244,10 @@ export default function Admin() {
                 <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Customer demand: <strong style={{ color: 'var(--text)' }}>{control.current_demand}</strong></div>
               )}
             </div>
+          )}
+
+          {status !== 'setup' && control && (
+            <EventBanners active={control.notice_active} warning={control.notice_warning} warningIn={control.notice_warning_in} />
           )}
 
           <div style={actionRow}>
