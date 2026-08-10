@@ -1,103 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
 /* ===================================================================
    OPSPHERE theme — the whole app reads its colors from here.
-   To restyle the app later, change these values in one place.
    =================================================================== */
 :root {
-  --bg: #0f0a1f;          /* deep aubergine background */
-  --bg-glow: #271b4d;     /* radial glow behind content */
-  --surface: #1a1333;     /* cards, inputs */
-  --surface-2: #241a45;   /* raised surface */
-  --border: #352a5f;      /* hairlines */
-  --text: #ece9f5;        /* primary text */
-  --text-muted: #a79fc4;  /* secondary text */
-  --primary: #6d43d6;     /* royal purple — buttons, accents */
+  /* legacy tokens (existing screens) */
+  --bg: #0f0a1f;
+  --bg-glow: #271b4d;
+  --surface: #1a1333;
+  --surface-2: #241a45;
+  --border: #352a5f;
+  --text: #ece9f5;
+  --text-muted: #a79fc4;
+  --primary: #6d43d6;
   --primary-hover: #8a5cff;
-  --accent: #34a8ff;      /* cyan (the Sigma) — highlights */
+  --accent: #34a8ff;
   --success: #3fb950;
   --danger: #f85149;
+
+  /* HUD design layer (new screens) */
+  --void: #0a0714;
+  --panel: #17122e;
+  --panel-2: #1f1846;
+  --line: #302655;
+  --violet: #7c4dff;
+  --violet-2: #9d7bff;
+  --cyan: #35d0ff;
+  --good: #3fe08f;
+  --warn: #ffb23e;
+  --bad: #ff4d6d;
+  --ink: #f0edff;
+  --ink-dim: #9a91c4;
 }
 
 * { box-sizing: border-box; }
-
 html, body { margin: 0; min-height: 100vh; }
 
 body {
-  background:
-    radial-gradient(1100px 560px at 50% -12%, var(--bg-glow) 0%, var(--bg) 58%);
+  background: radial-gradient(1100px 560px at 50% -12%, var(--bg-glow) 0%, var(--bg) 58%);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
-/* Faded OPSPHERE watermark, centered behind all content.
-   Change the opacity value below (0.06) to make it fainter or bolder. */
 body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: url('/logo.png');
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: min(680px, 78vw);
-  opacity: 0.1;
-  pointer-events: none;
-  z-index: -1;
+  content: ""; position: fixed; inset: 0;
+  background-image: url('/logo.png'); background-repeat: no-repeat;
+  background-position: center; background-size: min(680px, 78vw);
+  opacity: 0.04; pointer-events: none; z-index: -1;
 }
 
-/* ---- shared bits reused across pages ---- */
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
+.display { font-family: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif; }
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* ---- shared bits ---- */
+.eyebrow { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted); }
 
 .input {
-  width: 100%;
-  padding: 11px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 15px;
-  outline: none;
+  width: 100%; padding: 11px 12px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 15px; outline: none;
 }
 .input:focus { border-color: var(--primary); }
 .input::placeholder { color: #6f6690; }
 
-.btn {
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-}
+.btn { padding: 12px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; }
 .btn-primary { background: var(--primary); color: #fff; }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-primary:disabled { opacity: 0.6; cursor: default; }
-
 .btn-ghost {
-  padding: 10px 18px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
+  padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text); font-size: 14px; cursor: pointer;
 }
 .btn-ghost:hover { border-color: var(--primary); }
 
-.card {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 12px;
+.card { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; }
+.error-box {
+  color: var(--danger); background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.3);
+  border-radius: 8px; padding: 10px 12px; font-size: 14px;
 }
 
-.error-box {
-  color: var(--danger);
-  background: rgba(248, 81, 73, 0.1);
-  border: 1px solid rgba(248, 81, 73, 0.3);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
+/* ---- HUD command board ---- */
+.hud-wrap { min-height: 100vh; padding: 84px 20px 48px; max-width: 1120px; margin: 0 auto; }
+
+.cmdbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 18px; border-radius: 14px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line);
+}
+.phase-pill {
+  display: inline-flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 999px;
+  background: rgba(124,77,255,0.14); border: 1px solid rgba(124,77,255,0.4);
+  color: var(--violet-2); font-weight: 600; font-size: 13px; letter-spacing: 0.04em;
+}
+.phase-pill.live::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan); animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.timebar { height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 12px; }
+.timebar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--violet), var(--cyan)); transition: width 1s linear; }
+
+.chain { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 18px; }
+@media (max-width: 820px) { .chain { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .chain { grid-template-columns: 1fr; } }
+
+.station {
+  position: relative; border-radius: 14px; padding: 16px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line); overflow: hidden;
+}
+.station.active { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(53,208,255,0.4), 0 8px 30px rgba(53,208,255,0.08); }
+.station .role { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--violet-2); }
+.station .who { font-size: 13px; color: var(--ink-dim); margin: 2px 0 12px; min-height: 18px; }
+.station .inv { font-size: 40px; line-height: 1; font-weight: 700; color: var(--ink); }
+.station .inv small { font-size: 12px; letter-spacing: 0.14em; color: var(--ink-dim); display: block; margin-top: 4px; }
+
+.gauge { height: 6px; border-radius: 6px; background: rgba(255,255,255,0.06); overflow: hidden; margin: 12px 0; }
+.gauge > i { display: block; height: 100%; border-radius: 6px; }
+
+.pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.bad { color: #fff; background: var(--bad); box-shadow: 0 0 14px rgba(255,77,109,0.5); }
+.pill.ok { color: var(--good); background: rgba(63,224,143,0.12); }
+
+.metric { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-dim); margin-top: 6px; }
+.metric b { color: var(--ink); }
+
+.flow-legend {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px;
+  font-size: 12px; letter-spacing: 0.08em; color: var(--ink-dim); text-transform: uppercase;
 }
