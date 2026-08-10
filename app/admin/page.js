@@ -168,6 +168,18 @@ export default function Admin() {
     if (error) setEngineMsg('Error: ' + error.message);
     await loadEngine(); setEngineBusy(false);
   }
+  async function pauseGame() {
+    setEngineBusy(true); setEngineMsg('');
+    const { error } = await supabase.rpc('pause_game');
+    if (error) setEngineMsg('Error: ' + error.message);
+    await loadEngine(); setEngineBusy(false);
+  }
+  async function resumeGame() {
+    setEngineBusy(true); setEngineMsg('');
+    const { error } = await supabase.rpc('resume_game');
+    if (error) setEngineMsg('Error: ' + error.message);
+    await loadEngine(); setEngineBusy(false);
+  }
 
   async function logout() { await supabase.auth.signOut(); router.replace('/'); }
 
@@ -216,6 +228,9 @@ export default function Admin() {
                 {maRemaining != null && status === 'running' && (
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)', marginLeft: 10 }}>{maRemaining}s</span>
                 )}
+                {status === 'paused' && (
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#d29922', marginLeft: 10 }}>Paused</span>
+                )}
               </div>
               {control.current_demand != null && (
                 <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Customer demand: <strong style={{ color: 'var(--text)' }}>{control.current_demand}</strong></div>
@@ -230,9 +245,15 @@ export default function Admin() {
               </button>
             ) : (
               <>
-                <button className="btn btn-primary" onClick={advancePhase} disabled={engineBusy || status === 'complete'} style={{ minWidth: 150 }}>
-                  {engineBusy ? 'Working…' : 'Advance phase'}
-                </button>
+                {status === 'running' && (
+                  <button className="btn-ghost" onClick={pauseGame} disabled={engineBusy}>Pause</button>
+                )}
+                {status === 'paused' && (
+                  <button className="btn btn-primary" onClick={resumeGame} disabled={engineBusy} style={{ minWidth: 120 }}>
+                    {engineBusy ? 'Working…' : 'Resume'}
+                  </button>
+                )}
+                <button className="btn-ghost" onClick={advancePhase} disabled={engineBusy || status !== 'running'}>Force-advance</button>
                 <button className="btn-ghost" onClick={startGame} disabled={engineBusy}>Restart game</button>
               </>
             )}
