@@ -1,81 +1,114 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabaseClient';
-import EventBanners from '../components/EventBanners';
+import { supabase } from '../lib/supabaseClient';
 
-const PHASE_LABEL = {
-  arrivals_resolved: 'Arrivals resolved', demand_revealed: 'Demand revealed', strategy: 'Strategy',
-  ordering_retailer: 'Ordering — Retailer', ordering_wholesaler: 'Ordering — Wholesaler',
-  ordering_distributor: 'Ordering — Distributor', ordering_factory: 'Ordering — Factory', resolved: 'Round resolved',
-};
+const ALLOWED_DOMAIN = 'ibsindia.org';
 
-export default function TableAdminView() {
+export default function Login() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [tableNo, setTableNo] = useState(null);
-  const [control, setControl] = useState(null);
-  const pollRef = useRef(null);
-
-  const loadControl = useCallback(async () => {
-    const { data } = await supabase.rpc('get_control');
-    setControl(data && data.length ? data[0] : null);
-  }, []);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    async function init() {
-      const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) { router.replace('/'); return; }
-      const { data: prof } = await supabase.from('profiles').select('system_role, table_id').eq('id', sess.session.user.id).single();
-      if (!prof || prof.system_role !== 'TableAdmin') { router.replace('/home'); return; }
-      if (prof.table_id) {
-        const { data: gt } = await supabase.from('game_table').select('number').eq('id', prof.table_id).single();
-        setTableNo(gt?.number ?? null);
-      }
-      await loadControl();
-      setLoading(false);
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace('/home');
+      else setCheckingSession(false);
+    });
+  }, [router]);
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setError('');
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail.endsWith('@' + ALLOWED_DOMAIN)) {
+      setError(`Please use your @${ALLOWED_DOMAIN} email address.`);
+      return;
     }
-    init();
-  }, [router, loadControl]);
 
-  useEffect(() => {
-    pollRef.current = setInterval(() => { loadControl(); }, 2500);
-    return () => clearInterval(pollRef.current);
-  }, [loadControl]);
+    setLoading(true);
+    const creds = { email: cleanEmail, password };
 
-  async function logout() { await supabase.auth.signOut(); router.replace('/'); }
+    // Existing account? sign in against their stored password.
+    const { error: signInError } = await supabase.auth.signInWithPassword(creds);
 
-  if (loading) return <main style={center}><p style={{ color: 'var(--text-muted)' }}>Loading…</p></main>;
+    if (signInError) {
+      // New account — the password must match the one required for this
+      // email's role (MA / Table Admin / player), or we don't create it.
+      const { data: ok, error: chkErr } = await supabase.rpc('password_matches', {
+        p_email: cleanEmail,
+        p_password: password,
+      });
+      if (chkErr) { setError(chkErr.message); setLoading(false); return; }
+      if (!ok) { setError('Incorrect password for this account.'); setLoading(false); return; }
+
+      const { error: signUpError } = await supabase.auth.signUp(creds);
+      if (signUpError) {
+        const msg = (signUpError.message || '').toLowerCase();
+        if (msg.includes('already registered')) {
+          setError('That account exists, but the password is incorrect.');
+        } else if (msg.includes(ALLOWED_DOMAIN) || msg.includes('allowed')) {
+          setError(`Please use your @${ALLOWED_DOMAIN} email address.`);
+        } else {
+          setError(signUpError.message);
+        }
+        setLoading(false);
+        return;
+      }
+    }
+
+    router.replace('/home');
+  }
+
+  if (checkingSession) return null;
+
+  const labelStyle = { fontSize: 13, color: 'var(--text-muted)', display: 'block', marginBottom: 6 };
 
   return (
-    <main style={{ ...center, alignItems: 'flex-start' }}>
-      <div style={{ maxWidth: 560, width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <div className="eyebrow">Table Admin</div>
-          {control?.status === 'running' && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Round {control.current_round} / {control.total_rounds}</div>}
-        </div>
-        <h1 style={{ fontSize: 26, margin: '0 0 8px', fontWeight: 700 }}>{tableNo ? `Table ${tableNo}` : 'Your table'}</h1>
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: 380 }}>
+        <div className="eyebrow" style={{ marginBottom: 12, textAlign: 'center' }}>OPSPHERE · MBA Event</div>
+        <h1 style={{ fontSize: 30, margin: '0 0 6px', textAlign: 'center', fontWeight: 700 }}>Supply Chain Simulation</h1>
+        <p style={{ color: 'var(--text-muted)', margin: '0 0 28px', textAlign: 'center', fontSize: 15 }}>
+          Sign in to take your seat.
+        </p>
 
-        {control && control.status !== 'setup' && (
-          <div style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 14 }}>
-            {PHASE_LABEL[control.phase] || control.phase}
-            {control.status === 'paused' && <span style={{ color: '#d29922', fontWeight: 600, marginLeft: 8 }}>· Paused</span>}
-          </div>
-        )}
+        <form onSubmit={handleLogin}>
+          <label style={labelStyle}>Email</label>
+          <input
+            className="input" type="email" value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={`you@${ALLOWED_DOMAIN}`} autoComplete="email" required
+          />
 
-        {control && (
-          <EventBanners active={control.notice_active} warning={control.notice_warning} warningIn={control.notice_warning_in} />
-        )}
+          <label style={{ ...labelStyle, marginTop: 16 }}>Password</label>
+          <input
+            className="input" type="password" value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Event password" autoComplete="current-password" required
+          />
 
-        <div className="card" style={{ padding: '18px 20px', color: 'var(--text-muted)', fontSize: 14, margin: '10px 0 24px' }}>
-          Your full table dashboard (all four roles, live) is being built next. For now this confirms
-          you&apos;re the admin for {tableNo ? `Table ${tableNo}` : 'your table'} and shows the game&apos;s current status and events.
-        </div>
-        <button className="btn-ghost" onClick={logout}>Sign out</button>
+          {error && <div className="error-box" style={{ marginTop: 16 }}>{error}</div>}
+
+          <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: 24 }}>
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
       </div>
     </main>
   );
 }
-
-const center = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '92px 24px 64px' };
