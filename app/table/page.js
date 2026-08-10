@@ -21,6 +21,9 @@ export default function TableAdminView() {
   const [control, setControl] = useState(null);
   const [board, setBoard] = useState([]);
   const [now, setNow] = useState(Date.now());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [scoresShown, setScoresShown] = useState(false);
   const pollRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -56,6 +59,26 @@ export default function TableAdminView() {
   }, []);
 
   async function logout() { await supabase.auth.signOut(); router.replace('/'); }
+
+  async function pauseGame() {
+    setBusy(true); setMsg('');
+    const { error } = await supabase.rpc('pause_game');
+    if (error) setMsg(error.message);
+    await load(); setBusy(false);
+  }
+  async function askResume() {
+    setBusy(true);
+    const { error } = await supabase.rpc('request_resume');
+    setMsg(error ? error.message : 'Request sent to the Master Admin.');
+    setBusy(false);
+  }
+  async function toggleScores() {
+    setBusy(true); setMsg('');
+    const next = !scoresShown;
+    const { error } = await supabase.rpc('set_show_costs', { p_show: next });
+    if (error) setMsg(error.message); else setScoresShown(next);
+    setBusy(false);
+  }
 
   if (loading) return <div className="hud-wrap"><p style={{ color: 'var(--ink-dim)' }}>Loading command board…</p></div>;
 
@@ -142,9 +165,28 @@ export default function TableAdminView() {
         <button className="btn-ghost" onClick={logout}>Sign out</button>
       </div>
 
-      <p style={{ color: 'var(--ink-dim)', fontSize: 13, marginTop: 20 }}>
-        Pause &amp; player-takeover controls arrive next. This board is yours to watch — players never see costs here.
-      </p>
+      <div style={{ marginTop: 22 }}>
+        {running && (
+          <button className="btn-primary" style={{ padding: '12px 22px', borderRadius: 10, fontWeight: 700 }} onClick={pauseGame} disabled={busy}>
+            ⏸ Pause game
+          </button>
+        )}
+        {paused && (
+          <div className="card" style={{ padding: 18, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
+            <div className="display" style={{ letterSpacing: '0.1em', color: 'var(--cyan)', marginBottom: 12, fontWeight: 600 }}>
+              GAME PAUSED — CHOOSE AN ACTION
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button className="btn-ghost" onClick={askResume} disabled={busy}>📣 Ask MA to resume</button>
+              <button className="btn-ghost" onClick={toggleScores} disabled={busy}>
+                {scoresShown ? '🙈 Hide player scores' : '💰 Show player scores'}
+              </button>
+              <button className="btn-ghost" disabled title="Coming next">🎮 Player takeover (next)</button>
+            </div>
+            {msg && <div style={{ marginTop: 12, color: 'var(--cyan)', fontSize: 13 }}>{msg}</div>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
