@@ -96,7 +96,7 @@ export default function Admin() {
 
   // Poll the live grid while the game is running.
   useEffect(() => {
-    if (control?.status === 'running') {
+    if (control?.status === 'running' || control?.status === 'paused') {
       pollRef.current = setInterval(() => { loadEngine(); }, 2000);
       return () => clearInterval(pollRef.current);
     }
