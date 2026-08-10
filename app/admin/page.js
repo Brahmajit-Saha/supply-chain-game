@@ -193,6 +193,11 @@ export default function Admin() {
 
   async function logout() { await supabase.auth.signOut(); router.replace('/'); }
 
+  async function dismissRequest() {
+    await supabase.rpc('clear_resume_request');
+    await loadEngine();
+  }
+
   if (loading) return <main style={wrap}><p style={{ color: 'var(--text-muted)' }}>Loading…</p></main>;
 
   const totalPlayers = teamCounts.reduce((s, t) => s + Number(t.member_count), 0);
@@ -213,6 +218,20 @@ export default function Admin() {
 
   return (
     <main style={wrap}>
+      {control?.resume_request_table && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="card" style={{ padding: 24, maxWidth: 380, background: 'var(--surface)' }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Resume requested</div>
+            <div style={{ color: 'var(--text-muted)', marginBottom: 18 }}>
+              Table {control.resume_request_table} Admin requests Game Resuming.
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn-ghost" onClick={dismissRequest}>Dismiss</button>
+              <button className="btn btn-primary" onClick={resumeGame} style={{ minWidth: 110 }}>Resume game</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ width: '100%', maxWidth: 760 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
