@@ -70,6 +70,12 @@ export default function TableAdminView() {
   useEffect(() => { pollRef.current = setInterval(load, 2000); return () => clearInterval(pollRef.current); }, [load]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
+  useEffect(() => {
+    if (control && control.status !== 'paused') {
+      setTakeover(false); setControlled([]); setTkStates({}); setTkQty({});
+    }
+  }, [control?.status]);
+
   async function logout() { await supabase.auth.signOut(); router.replace('/'); }
   async function pauseGame() { setBusy(true); setMsg(''); const { error } = await supabase.rpc('pause_game'); if (error) setMsg(error.message); await load(); setBusy(false); }
   async function askResume() { setBusy(true); const { error } = await supabase.rpc('request_resume'); setMsg(error ? error.message : 'Request sent to the Master Admin.'); setBusy(false); }
@@ -106,7 +112,7 @@ export default function TableAdminView() {
   const barPct = remaining != null ? Math.max(0, Math.min(100, (remaining / (PHASE_SECS[control?.phase] || 2)) * 100)) : 0;
   const total = board.reduce((s, r) => s + Number(r.cum_cost || 0), 0);
   const byRole = {}; board.forEach((r) => { byRole[r.role] = r; });
-  const hideBoard = takeover; // hide the full board whenever in takeover mode
+  const hideBoard = takeover && paused; // only hide the board during an active (paused) takeover
 
   return (
     <div className="hud-wrap">
