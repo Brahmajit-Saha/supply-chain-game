@@ -25,21 +25,18 @@ export default function TableAdminView() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [scoresShown, setScoresShown] = useState(false);
-
-  const [takeover, setTakeover] = useState(false);   // TA is in takeover mode (persists across resume)
-  const [controlled, setControlled] = useState([]);  // roles being proxied
+  const [selecting, setSelecting] = useState(false); // transient: choosing seats while paused
   const [tkStates, setTkStates] = useState({});
   const [tkQty, setTkQty] = useState({});
   const [tkMsg, setTkMsg] = useState('');
   const pollRef = useRef(null);
-  const ctrlRef = useRef(controlled); ctrlRef.current = controlled;
 
   const load = useCallback(async () => {
     const { data: c } = await supabase.rpc('get_control');
     setControl(c && c.length ? c[0] : null);
     const { data: b } = await supabase.rpc('get_ta_board');
     setBoard(b || []);
-    const roles = ctrlRef.current;
+    const roles = (b || []).filter((r) => r.controlled).map((r) => r.role);
     if (roles.length) {
       const next = {};
       for (const role of roles) {
@@ -47,6 +44,8 @@ export default function TableAdminView() {
         next[role] = data && data.length ? data[0] : {};
       }
       setTkStates(next);
+    } else {
+      setTkStates({});
     }
   }, []);
 
@@ -77,14 +76,18 @@ export default function TableAdminView() {
     if (error) setMsg(error.message); else setScoresShown(next);
     setBusy(false);
   }
-  function enterTakeover() { setTakeover(true); setTkMsg(''); }
-  function exitTakeover() { setTakeover(false); setControlled([]); setTkStates({}); setTkQty({}); }
-  async function toggleRole(role) {
-    if (controlled.includes(role)) { setControlled((c) => c.filter((r) => r !== role)); return; }
-    if (!window.confirm(`Take over the ${role}? You'll play this seat until you exit.`)) return;
-    setControlled((c) => [...c, role]);
-    const { data } = await supabase.rpc('get_takeover_state', { p_role: role });
-    setTkStates((s) => ({ ...s, [role]: data && data.length ? data[0] : {} }));
+  async function toggleRole(role, isOn) {
+    if (!isOn && !window.confirm(`Take over the ${role}? You'll play this seat until you exit.`)) return;
+    setBusy(true);
+    const { error } = await supabase.rpc('set_takeover', { p_role: role, p_on: !isOn });
+    if (error) setTkMsg(error.message);
+    await load(); setBusy(false);
+  }
+  async function exitTakeover() {
+    setBusy(true);
+    await supabase.rpc('release_all_takeover');
+    setSelecting(false);
+    await load(); setBusy(false);
   }
   async function submitTakeover(role) {
     setTkMsg(''); const q = parseInt(tkQty[role], 10);
@@ -104,6 +107,8 @@ export default function TableAdminView() {
   const barPct = remaining != null ? Math.max(0, Math.min(100, (remaining / (PHASE_SECS[control?.phase] || 2)) * 100)) : 0;
   const total = board.reduce((s, r) => s + Number(r.cum_cost || 0), 0);
   const byRole = {}; board.forEach((r) => { byRole[r.role] = r; });
+  const controlled = board.filter((r) => r.controlled).map((r) => r.role);
+  const inTakeover = controlled.length > 0 || (selecting && paused);
 
   return (
     <div className="hud-wrap">
@@ -130,8 +135,7 @@ export default function TableAdminView() {
         {control && <EventBanners active={control.notice_active} warning={control.notice_warning} warningIn={control.notice_warning_in} />}
       </div>
 
-      {/* Monitoring board — hidden while in takeover */}
-      {!takeover && (
+      {!inTakeover && (
         <>
           <div className="flow-legend">
             <span>📦 goods flow down</span><span style={{ color: 'var(--line)' }}>│</span>
@@ -164,25 +168,24 @@ export default function TableAdminView() {
         </>
       )}
 
-      {/* Controls */}
       <div style={{ marginTop: 22 }}>
-        {!takeover && running && (
+        {!inTakeover && running && (
           <button className="btn-primary" style={{ padding: '12px 22px', borderRadius: 10, fontWeight: 700 }} onClick={pauseGame} disabled={busy}>⏸ Pause game</button>
         )}
 
-        {!takeover && paused && (
+        {!inTakeover && paused && (
           <div className="card" style={{ padding: 18, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
             <div className="display" style={{ letterSpacing: '0.1em', color: 'var(--cyan)', marginBottom: 12, fontWeight: 600 }}>GAME PAUSED — CHOOSE AN ACTION</div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button className="btn-ghost" onClick={askResume} disabled={busy}>📣 Ask MA to resume</button>
               <button className="btn-ghost" onClick={toggleScores} disabled={busy}>{scoresShown ? '🙈 Hide player scores' : '💰 Show player scores'}</button>
-              <button className="btn-ghost" onClick={enterTakeover} disabled={busy}>🎮 Player takeover</button>
+              <button className="btn-ghost" onClick={() => setSelecting(true)} disabled={busy}>🎮 Player takeover</button>
             </div>
             {msg && <div style={{ marginTop: 12, color: 'var(--cyan)', fontSize: 13 }}>{msg}</div>}
           </div>
         )}
 
-        {takeover && (
+        {inTakeover && (
           <div className="card" style={{ padding: 18, background: 'var(--panel)', border: '1px solid var(--cyan)', borderRadius: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
               <div className="display" style={{ letterSpacing: '0.1em', color: 'var(--cyan)', fontWeight: 600 }}>
@@ -190,11 +193,10 @@ export default function TableAdminView() {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {running && <button className="btn-ghost" onClick={pauseGame} disabled={busy}>⏸ Pause to manage</button>}
-                {paused && <button className="btn-ghost" onClick={exitTakeover}>Exit takeover</button>}
+                {paused && <button className="btn-ghost" onClick={exitTakeover} disabled={busy}>Exit takeover</button>}
               </div>
             </div>
 
-            {/* seat selection — only when paused */}
             {paused && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 14 }}>
                 {ROLE_ORDER.map((role) => {
@@ -202,16 +204,15 @@ export default function TableAdminView() {
                   return (
                     <div key={role} className="station" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: on ? 'var(--cyan)' : 'var(--line)' }}>
                       <div><div className="role">{role}</div><div className="who">{byRole[role]?.player_name || '—'}</div></div>
-                      <button className={on ? 'btn-ghost' : 'btn-primary'} style={{ padding: '8px 14px', borderRadius: 8 }} onClick={() => toggleRole(role)}>{on ? 'Release' : 'Take over'}</button>
+                      <button className={on ? 'btn-ghost' : 'btn-primary'} style={{ padding: '8px 14px', borderRadius: 8 }} onClick={() => toggleRole(role, on)} disabled={busy}>{on ? 'Release' : 'Take over'}</button>
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {/* live proxy boxes */}
             {controlled.length === 0 ? (
-              <div style={{ color: 'var(--ink-dim)', fontSize: 13 }}>{paused ? 'Pick the seat(s) to play above.' : 'No seats taken over. Pause to pick a seat.'}</div>
+              <div style={{ color: 'var(--ink-dim)', fontSize: 13 }}>{paused ? 'Pick the seat(s) to play above.' : 'No seats taken over.'}</div>
             ) : (
               <div className="chain" style={{ marginTop: 0 }}>
                 {controlled.map((role) => {
