@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
+import EventBanners from '../components/EventBanners';
 
 const PHASE_LABEL = {
   arrivals_resolved: 'Shipments arriving',
@@ -132,16 +133,9 @@ export default function Play() {
             {paused && <span style={{ color: '#d29922', fontWeight: 600, marginLeft: 8 }}>· Paused</span>}
           </div>
 
-          {play.surge_in != null && (
-            <div style={{ ...noticeStyle('#d29922'), marginBottom: 12 }}>
-              ⚠ Demand surge expected in {play.surge_in} round{play.surge_in === 1 ? '' : 's'} — plan ahead.
-            </div>
-          )}
-          {play.shutdown_now && (
-            <div style={{ ...noticeStyle('var(--danger)'), marginBottom: 12 }}>
-              ⛔ Factory shutdown this round — no new production is possible.
-            </div>
-          )}
+          {play.notice_warning || play.notice_active ? (
+            <EventBanners active={play.notice_active} warning={play.notice_warning} warningIn={play.notice_warning_in} />
+          ) : null}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
             <Stat label="On-hand inventory" value={play.inventory} />
@@ -166,7 +160,9 @@ export default function Play() {
 
           {/* order box */}
           <div className="card" style={{ padding: 18 }}>
-            {paused ? (
+            {play.notice_active === 'shutdown' ? (
+              <div style={{ color: 'var(--danger)', fontSize: 14 }}>⛔ Production is shut down — no order this week.</div>
+            ) : paused ? (
               <div style={{ color: '#d29922', fontSize: 14 }}>Game paused by the host. Ordering is frozen until it resumes.</div>
             ) : ordered ? (
               <div style={{ color: 'var(--success)', fontSize: 15 }}>✓ Order placed: <strong>{play.my_order}</strong> units</div>
