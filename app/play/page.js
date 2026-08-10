@@ -187,6 +187,20 @@ export default function Play() {
             )}
           </div>
 
+          {play.costs_visible && (
+            <div className="card" style={{ padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+                Your running cost — shown by your Table Admin
+              </div>
+              <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 14 }}>
+                <span>Holding <strong>${Math.round(Number(play.my_holding || 0)).toLocaleString()}</strong></span>
+                <span>Backlog <strong>${Math.round(Number(play.my_backlog_cost || 0)).toLocaleString()}</strong></span>
+                <span>Transport <strong>${Math.round(Number(play.my_transport || 0)).toLocaleString()}</strong></span>
+                <span style={{ color: 'var(--warn)' }}>Total <strong>${Math.round(Number(play.my_total || 0)).toLocaleString()}</strong></span>
+              </div>
+            </div>
+          )}
+
           <div style={{ textAlign: 'center', marginTop: 20 }}>
             <button className="btn-ghost" onClick={logout}>Sign out</button>
           </div>
