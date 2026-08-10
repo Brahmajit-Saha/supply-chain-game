@@ -180,6 +180,13 @@ export default function Admin() {
     if (error) setEngineMsg('Error: ' + error.message);
     await loadEngine(); setEngineBusy(false);
   }
+  async function redoRound() {
+    if (!window.confirm('Redo this round? Everything players did this round will be discarded and the round restarts with new demand.')) return;
+    setEngineBusy(true); setEngineMsg('');
+    const { error } = await supabase.rpc('redo_round');
+    if (error) setEngineMsg('Error: ' + error.message); else setEngineMsg('Round reset — press Resume to replay it.');
+    await loadEngine(); setEngineBusy(false);
+  }
 
   async function logout() { await supabase.auth.signOut(); router.replace('/'); }
 
@@ -252,6 +259,9 @@ export default function Admin() {
                   <button className="btn btn-primary" onClick={resumeGame} disabled={engineBusy} style={{ minWidth: 120 }}>
                     {engineBusy ? 'Working…' : 'Resume'}
                   </button>
+                )}
+                {status === 'paused' && (
+                  <button className="btn-ghost" onClick={redoRound} disabled={engineBusy}>Redo round</button>
                 )}
                 <button className="btn-ghost" onClick={advancePhase} disabled={engineBusy || status !== 'running'}>Force-advance</button>
                 <button className="btn-ghost" onClick={startGame} disabled={engineBusy}>Restart game</button>
