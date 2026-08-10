@@ -132,6 +132,17 @@ export default function Play() {
             {paused && <span style={{ color: '#d29922', fontWeight: 600, marginLeft: 8 }}>· Paused</span>}
           </div>
 
+          {play.surge_in != null && (
+            <div style={{ ...noticeStyle('#d29922'), marginBottom: 12 }}>
+              ⚠ Demand surge expected in {play.surge_in} round{play.surge_in === 1 ? '' : 's'} — plan ahead.
+            </div>
+          )}
+          {play.shutdown_now && (
+            <div style={{ ...noticeStyle('var(--danger)'), marginBottom: 12 }}>
+              ⛔ Factory shutdown this round — no new production is possible.
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
             <Stat label="On-hand inventory" value={play.inventory} />
             <Stat label="Backlog owed" value={play.backlog} danger={play.backlog > 0} />
@@ -273,6 +284,12 @@ function Stat({ label, value, danger }) {
 
 const center = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '92px 24px 64px' };
 const fieldLabel = { fontSize: 13, color: 'var(--text-muted)', display: 'block', marginBottom: 6 };
+function noticeStyle(color) {
+  return {
+    border: `1px solid ${color}`, background: 'rgba(210,153,34,0.08)', color,
+    borderRadius: 8, padding: '10px 14px', fontSize: 14, fontWeight: 600,
+  };
+}
 function teamOption(sel, full) {
   return {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderRadius: 8,
