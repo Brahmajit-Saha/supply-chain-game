@@ -42,6 +42,8 @@ export default function Admin() {
   const [engineMsg, setEngineMsg] = useState('');
   const pollRef = useRef(null);
   const [now, setNow] = useState(Date.now());
+  const [showDemand, setShowDemand] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
 
   const loadTables = useCallback(async () => {
     const { data: gt } = await supabase
@@ -241,7 +243,12 @@ export default function Admin() {
                 )}
               </div>
               {control.current_demand != null && (
-                <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Customer demand: <strong style={{ color: 'var(--text)' }}>{control.current_demand}</strong></div>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  Customer demand: <strong style={{ color: 'var(--text)' }}>{showDemand ? control.current_demand : '•••••'}</strong>
+                  <button className="btn-ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setShowDemand((s) => !s)}>
+                    {showDemand ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -272,6 +279,9 @@ export default function Admin() {
                 <button className="btn-ghost" onClick={startGame} disabled={engineBusy}>Restart game</button>
               </>
             )}
+            {status !== 'setup' && (
+              <button className="btn-ghost" onClick={() => setShowGrid((s) => !s)}>{showGrid ? 'Hide board' : 'Show board'}</button>
+            )}
             <button className="btn-ghost" onClick={loadEngine}>Refresh</button>
             {engineMsg && <span style={msgStyle(engineMsg)}>{engineMsg}</span>}
           </div>
@@ -279,7 +289,7 @@ export default function Admin() {
             <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 10 }}>Generate seating below before starting.</p>
           )}
 
-          {status !== 'setup' && grid.length > 0 && (
+          {status !== 'setup' && grid.length > 0 && showGrid && (
             <div style={{ overflowX: 'auto', marginTop: 18 }}>
               <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
                 <thead>
