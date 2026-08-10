@@ -26,21 +26,20 @@ export default function TableAdminView() {
   const [msg, setMsg] = useState('');
   const [scoresShown, setScoresShown] = useState(false);
 
-  const [takeover, setTakeover] = useState(false);         // in takeover mode
-  const [controlled, setControlled] = useState([]);        // roles being controlled
-  const [tkStates, setTkStates] = useState({});            // role -> state
+  const [takeover, setTakeover] = useState(false);   // TA is in takeover mode (persists across resume)
+  const [controlled, setControlled] = useState([]);  // roles being proxied
+  const [tkStates, setTkStates] = useState({});
   const [tkQty, setTkQty] = useState({});
   const [tkMsg, setTkMsg] = useState('');
   const pollRef = useRef(null);
-  const controlledRef = useRef(controlled);
-  controlledRef.current = controlled;
+  const ctrlRef = useRef(controlled); ctrlRef.current = controlled;
 
   const load = useCallback(async () => {
-    const { data: ctrl } = await supabase.rpc('get_control');
-    setControl(ctrl && ctrl.length ? ctrl[0] : null);
+    const { data: c } = await supabase.rpc('get_control');
+    setControl(c && c.length ? c[0] : null);
     const { data: b } = await supabase.rpc('get_ta_board');
     setBoard(b || []);
-    const roles = controlledRef.current;
+    const roles = ctrlRef.current;
     if (roles.length) {
       const next = {};
       for (const role of roles) {
@@ -61,20 +60,13 @@ export default function TableAdminView() {
         const { data: gt } = await supabase.from('game_table').select('number').eq('id', prof.table_id).single();
         setTableNo(gt?.number ?? null);
       }
-      await load();
-      setLoading(false);
+      await load(); setLoading(false);
     }
     init();
   }, [router, load]);
 
-  useEffect(() => { pollRef.current = setInterval(load, 2000); return () => clearInterval(pollRef.current); }, [load]);
+  useEffect(() => { pollRef.current = setInterval(load, 1500); return () => clearInterval(pollRef.current); }, [load]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-
-  useEffect(() => {
-    if (control && control.status !== 'paused') {
-      setTakeover(false); setControlled([]); setTkStates({}); setTkQty({});
-    }
-  }, [control?.status]);
 
   async function logout() { await supabase.auth.signOut(); router.replace('/'); }
   async function pauseGame() { setBusy(true); setMsg(''); const { error } = await supabase.rpc('pause_game'); if (error) setMsg(error.message); await load(); setBusy(false); }
@@ -85,12 +77,12 @@ export default function TableAdminView() {
     if (error) setMsg(error.message); else setScoresShown(next);
     setBusy(false);
   }
-  function enterTakeover() { setTakeover(true); setControlled([]); setTkMsg(''); }
+  function enterTakeover() { setTakeover(true); setTkMsg(''); }
   function exitTakeover() { setTakeover(false); setControlled([]); setTkStates({}); setTkQty({}); }
-  async function takeRole(role) {
-    if (!window.confirm(`Take over the ${role}? You will play this seat and the rest of the board will be hidden.`)) return;
-    const next = controlled.includes(role) ? controlled : [...controlled, role];
-    setControlled(next);
+  async function toggleRole(role) {
+    if (controlled.includes(role)) { setControlled((c) => c.filter((r) => r !== role)); return; }
+    if (!window.confirm(`Take over the ${role}? You'll play this seat until you exit.`)) return;
+    setControlled((c) => [...c, role]);
     const { data } = await supabase.rpc('get_takeover_state', { p_role: role });
     setTkStates((s) => ({ ...s, [role]: data && data.length ? data[0] : {} }));
   }
@@ -112,16 +104,13 @@ export default function TableAdminView() {
   const barPct = remaining != null ? Math.max(0, Math.min(100, (remaining / (PHASE_SECS[control?.phase] || 2)) * 100)) : 0;
   const total = board.reduce((s, r) => s + Number(r.cum_cost || 0), 0);
   const byRole = {}; board.forEach((r) => { byRole[r.role] = r; });
-  const hideBoard = takeover && paused; // only hide the board during an active (paused) takeover
 
   return (
     <div className="hud-wrap">
       <div className="cmdbar">
         <div>
           <div className="eyebrow" style={{ color: 'var(--cyan)' }}>Table Admin</div>
-          <div className="display" style={{ fontSize: 26, fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.02em' }}>
-            TABLE {tableNo ?? '—'} · CONTROL
-          </div>
+          <div className="display" style={{ fontSize: 26, fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.02em' }}>TABLE {tableNo ?? '—'} · CONTROL</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           {status !== 'setup' ? (
@@ -141,7 +130,8 @@ export default function TableAdminView() {
         {control && <EventBanners active={control.notice_active} warning={control.notice_warning} warningIn={control.notice_warning_in} />}
       </div>
 
-      {!hideBoard && (
+      {/* Monitoring board — hidden while in takeover */}
+      {!takeover && (
         <>
           <div className="flow-legend">
             <span>📦 goods flow down</span><span style={{ color: 'var(--line)' }}>│</span>
@@ -159,22 +149,16 @@ export default function TableAdminView() {
                   <div className="who">{r.player_name || '—'}</div>
                   <div className="inv mono">{r.inventory ?? '—'}<small>IN STOCK</small></div>
                   <div className="gauge"><i style={{ width: `${invPct}%`, background: Number(r.inventory) > 0 ? 'var(--good)' : 'var(--ink-dim)' }} /></div>
-                  <div style={{ marginBottom: 8 }}>
-                    {Number(r.backlog) > 0 ? <span className="pill bad mono">BACKLOG {r.backlog}</span> : <span className="pill ok">no backlog</span>}
-                  </div>
+                  <div style={{ marginBottom: 8 }}>{Number(r.backlog) > 0 ? <span className="pill bad mono">BACKLOG {r.backlog}</span> : <span className="pill ok">no backlog</span>}</div>
                   <div className="metric"><span>ordered this rd</span><b className="mono">{r.last_order == null ? '—' : r.last_order}</b></div>
                   <div className="metric"><span>arriving now</span><b className="mono">{r.incoming_this ?? 0}</b></div>
-                  <div className="metric" style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
-                    <span>cost so far</span><b className="mono" style={{ color: 'var(--warn)' }}>{money(r.cum_cost)}</b>
-                  </div>
+                  <div className="metric" style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--line)' }}><span>cost so far</span><b className="mono" style={{ color: 'var(--warn)' }}>{money(r.cum_cost)}</b></div>
                 </div>
               );
             })}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 }}>
-            <div className="display" style={{ fontSize: 14, letterSpacing: '0.1em', color: 'var(--ink-dim)' }}>
-              TABLE TOTAL COST&nbsp;&nbsp;<span className="mono" style={{ fontSize: 22, color: 'var(--ink)' }}>{money(total)}</span>
-            </div>
+            <div className="display" style={{ fontSize: 14, letterSpacing: '0.1em', color: 'var(--ink-dim)' }}>TABLE TOTAL COST&nbsp;&nbsp;<span className="mono" style={{ fontSize: 22, color: 'var(--ink)' }}>{money(total)}</span></div>
             <button className="btn-ghost" onClick={logout}>Sign out</button>
           </div>
         </>
@@ -182,11 +166,11 @@ export default function TableAdminView() {
 
       {/* Controls */}
       <div style={{ marginTop: 22 }}>
-        {running && (
+        {!takeover && running && (
           <button className="btn-primary" style={{ padding: '12px 22px', borderRadius: 10, fontWeight: 700 }} onClick={pauseGame} disabled={busy}>⏸ Pause game</button>
         )}
 
-        {paused && !takeover && (
+        {!takeover && paused && (
           <div className="card" style={{ padding: 18, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
             <div className="display" style={{ letterSpacing: '0.1em', color: 'var(--cyan)', marginBottom: 12, fontWeight: 600 }}>GAME PAUSED — CHOOSE AN ACTION</div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -198,67 +182,76 @@ export default function TableAdminView() {
           </div>
         )}
 
-        {paused && takeover && (
+        {takeover && (
           <div className="card" style={{ padding: 18, background: 'var(--panel)', border: '1px solid var(--cyan)', borderRadius: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div className="display" style={{ letterSpacing: '0.1em', color: 'var(--cyan)', fontWeight: 600 }}>PLAYER TAKEOVER</div>
-              <button className="btn-ghost" onClick={exitTakeover}>Exit takeover</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+              <div className="display" style={{ letterSpacing: '0.1em', color: 'var(--cyan)', fontWeight: 600 }}>
+                PLAYER TAKEOVER {running && <span className="mono" style={{ color: 'var(--good)', fontSize: 12, marginLeft: 8 }}>● LIVE PROXY</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {running && <button className="btn-ghost" onClick={pauseGame} disabled={busy}>⏸ Pause to manage</button>}
+                {paused && <button className="btn-ghost" onClick={exitTakeover}>Exit takeover</button>}
+              </div>
             </div>
 
-            {controlled.length === 0 ? (
-              <>
-                <div style={{ color: 'var(--ink-dim)', fontSize: 13, marginBottom: 12 }}>Tap the seat you need to play for. The full board is hidden while you take over.</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-                  {ROLE_ORDER.map((role) => (
-                    <div key={role} className="station" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* seat selection — only when paused */}
+            {paused && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 14 }}>
+                {ROLE_ORDER.map((role) => {
+                  const on = controlled.includes(role);
+                  return (
+                    <div key={role} className="station" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: on ? 'var(--cyan)' : 'var(--line)' }}>
                       <div><div className="role">{role}</div><div className="who">{byRole[role]?.player_name || '—'}</div></div>
-                      <button className="btn-primary" style={{ padding: '8px 14px', borderRadius: 8 }} onClick={() => takeRole(role)}>Take over</button>
+                      <button className={on ? 'btn-ghost' : 'btn-primary'} style={{ padding: '8px 14px', borderRadius: 8 }} onClick={() => toggleRole(role)}>{on ? 'Release' : 'Take over'}</button>
                     </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="chain" style={{ marginTop: 0 }}>
-                  {controlled.map((role) => {
-                    const st = tkStates[role] || {};
-                    const ordered = st.my_order != null;
-                    return (
-                      <div key={role} className="station active">
-                        <div className="role">{role} · takeover</div>
-                        <div className="who">{st.player_name || ''}</div>
-                        <div className="inv mono">{st.inventory ?? '—'}<small>IN STOCK</small></div>
-                        <div style={{ margin: '8px 0' }}>
-                          {Number(st.backlog) > 0 ? <span className="pill bad mono">BACKLOG {st.backlog}</span> : <span className="pill ok">no backlog</span>}
-                        </div>
-                        <div className="metric"><span>demand from below</span><b className="mono">{st.demand_below == null ? '—' : st.demand_below}</b></div>
-                        <div className="metric"><span>arriving now</span><b className="mono">{st.incoming_this ?? 0}</b></div>
-                        <div style={{ marginTop: 12 }}>
-                          {ordered ? (
-                            <div style={{ color: 'var(--good)', fontSize: 14 }}>✓ Order placed: {st.my_order}</div>
-                          ) : st.is_my_turn ? (
-                            <>
-                              <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 6 }}>Order from {UPSTREAM[role]}</div>
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <input className="input" type="number" min="0" value={tkQty[role] || ''} onChange={(e) => setTkQty((s) => ({ ...s, [role]: e.target.value }))} placeholder="Qty" />
-                                <button className="btn-primary" style={{ padding: '0 16px', borderRadius: 8 }} onClick={() => submitTakeover(role)} disabled={busy}>Place</button>
-                              </div>
-                            </>
-                          ) : (
-                            <div style={{ color: 'var(--ink-dim)', fontSize: 12 }}>This seat’s ordering window isn’t open now. Pause during their turn to place an order.</div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-                  <button className="btn-ghost" onClick={() => setControlled([])}>+ Take over another</button>
-                  <button className="btn-ghost" onClick={askResume} disabled={busy}>📣 Ask MA to resume</button>
-                </div>
-                {tkMsg && <div style={{ marginTop: 10, color: 'var(--cyan)', fontSize: 13 }}>{tkMsg}</div>}
-              </>
+                  );
+                })}
+              </div>
             )}
+
+            {/* live proxy boxes */}
+            {controlled.length === 0 ? (
+              <div style={{ color: 'var(--ink-dim)', fontSize: 13 }}>{paused ? 'Pick the seat(s) to play above.' : 'No seats taken over. Pause to pick a seat.'}</div>
+            ) : (
+              <div className="chain" style={{ marginTop: 0 }}>
+                {controlled.map((role) => {
+                  const st = tkStates[role] || {};
+                  const ordered = st.my_order != null;
+                  return (
+                    <div key={role} className="station active">
+                      <div className="role">{role} · proxy</div>
+                      <div className="who">{st.player_name || ''}</div>
+                      <div className="inv mono">{st.inventory == null ? '—' : st.inventory}<small>IN STOCK</small></div>
+                      <div style={{ margin: '8px 0' }}>{Number(st.backlog) > 0 ? <span className="pill bad mono">BACKLOG {st.backlog}</span> : <span className="pill ok">no backlog</span>}</div>
+                      <div className="metric"><span>demand from below</span><b className="mono">{st.demand_below == null ? '—' : st.demand_below}</b></div>
+                      <div className="metric"><span>arriving now</span><b className="mono">{st.incoming_this ?? 0}</b></div>
+                      <div style={{ marginTop: 12 }}>
+                        {ordered ? (
+                          <div style={{ color: 'var(--good)', fontSize: 14 }}>✓ Order placed: {st.my_order}</div>
+                        ) : st.is_my_turn ? (
+                          <>
+                            <div style={{ fontSize: 12, color: 'var(--cyan)', marginBottom: 6 }}>▶ THEIR TURN — order from {UPSTREAM[role]}</div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <input className="input" type="number" min="0" value={tkQty[role] || ''} onChange={(e) => setTkQty((s) => ({ ...s, [role]: e.target.value }))} placeholder="Qty" autoFocus />
+                              <button className="btn-primary" style={{ padding: '0 16px', borderRadius: 8 }} onClick={() => submitTakeover(role)} disabled={busy}>Place</button>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ color: 'var(--ink-dim)', fontSize: 12 }}>Waiting for their turn…</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {paused && controlled.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <button className="btn-ghost" onClick={askResume} disabled={busy}>📣 Ask MA to resume &amp; play</button>
+              </div>
+            )}
+            {tkMsg && <div style={{ marginTop: 10, color: 'var(--cyan)', fontSize: 13 }}>{tkMsg}</div>}
           </div>
         )}
       </div>
