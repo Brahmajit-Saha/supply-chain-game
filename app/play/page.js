@@ -125,10 +125,20 @@ export default function Play() {
             <div className="role">{play.my_role === 'Retailer' ? 'Customer demand this round' : 'Order from your customer'}</div>
             <div className="inv mono" style={{ fontSize: 30, color: 'var(--cyan)' }}>{play.demand_below == null ? '—' : play.demand_below}</div>
           </div>
-          <div className="station" style={{ borderColor: 'var(--warn)' }}>
-            <div className="role" style={{ color: 'var(--warn)' }}>This round&apos;s cost</div>
-            <div className="mono" style={{ fontSize: 30, color: 'var(--ink)', marginTop: 2 }}>{money(play.round_total)}</div>
-            <div className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)', marginTop: 4, lineHeight: 1.5 }}>
+          <div className="station">
+            <div className="role">Shared customer demand</div>
+            {play.demand_sharing
+              ? <div className="inv mono" style={{ fontSize: 30, color: 'var(--cyan)' }}>{play.shared_demand}</div>
+              : <div style={{ color: 'var(--ink-dim)', fontSize: 15, marginTop: 10 }}>off</div>}
+          </div>
+        </div>
+
+        {/* This round's cost — full width */}
+        <div className="station" style={{ marginTop: 12, borderColor: 'var(--warn)' }}>
+          <div className="role" style={{ color: 'var(--warn)' }}>This round&apos;s cost</div>
+          <div style={{ display: 'flex', gap: 18, alignItems: 'baseline', flexWrap: 'wrap', marginTop: 4 }}>
+            <div className="mono" style={{ fontSize: 30, color: 'var(--ink)' }}>{money(play.round_total)}</div>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)' }}>
               holding {money(play.round_holding)} · backlog {money(play.round_backlog)} · transport {money(play.round_transport)}
             </div>
           </div>
@@ -137,11 +147,6 @@ export default function Play() {
         {/* Static cost-rate reminder */}
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.02em', textAlign: 'center' }}>
           💡 Holding <b style={{ color: 'var(--ink)' }}>$5</b>/unit · Backlog <b style={{ color: 'var(--ink)' }}>$10</b>/unit · Transport <b style={{ color: 'var(--ink)' }}>$2</b>/truck (6u, +$1 if last truck &lt; 5)
-        </div>
-
-        {/* shared demand slot */}
-        <div className="station" style={{ marginTop: 12, color: 'var(--ink-dim)', fontSize: 13 }}>
-          {play.demand_sharing ? <>📢 Shared customer demand: <b style={{ color: 'var(--cyan)' }}>{play.shared_demand}</b></> : 'Shared customer demand — off'}
         </div>
 
         {/* order box */}
