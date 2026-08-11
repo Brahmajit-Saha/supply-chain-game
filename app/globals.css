@@ -45,8 +45,8 @@ body {
 body::before {
   content: ""; position: fixed; inset: 0;
   background-image: url('/logo.png'); background-repeat: no-repeat;
-  background-position: center; background-size: min(680px, 78vw);
-  opacity: 0.04; pointer-events: none; z-index: -1;
+  background-position: center; background-size: min(720px, 82vw);
+  opacity: 0.14; pointer-events: none; z-index: -1;
 }
 
 .display { font-family: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif; }
@@ -79,7 +79,8 @@ body::before {
 }
 
 /* ---- HUD command board ---- */
-.hud-wrap { min-height: 100vh; padding: 84px 20px 48px; max-width: 1120px; margin: 0 auto; }
+.hud-wrap { min-height: 100vh; padding: 100px 20px 72px; max-width: 1120px; margin: 0 auto; }
+@media (max-width: 700px) { .hdr-center { display: none !important; } }
 
 .cmdbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
