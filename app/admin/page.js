@@ -40,6 +40,7 @@ export default function Admin() {
   const [showDemand, setShowDemand] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [scores, setScores] = useState([]);
+  const [orderHistory, setOrderHistory] = useState([]);
   const [boardTab, setBoardTab] = useState('teams');
   const pollRef = useRef(null);
 
@@ -60,6 +61,7 @@ export default function Admin() {
     const { data: ctrl } = await supabase.rpc('get_control'); setControl(ctrl && ctrl.length ? ctrl[0] : null);
     const { data: g } = await supabase.rpc('get_admin_grid'); setGrid(g || []);
     const { data: sc } = await supabase.rpc('get_scores'); setScores(sc || []);
+    const { data: oh } = await supabase.rpc('get_order_history'); setOrderHistory(oh || []);
   }, []);
 
   useEffect(() => {
@@ -202,7 +204,10 @@ export default function Admin() {
       </div>
 
       {view === 'scoreboard' ? (
-        <Leaderboard scores={scores} boardTab={boardTab} setBoardTab={setBoardTab} />
+        <>
+          <Leaderboard scores={scores} boardTab={boardTab} setBoardTab={setBoardTab} />
+          <BullwhipChart history={orderHistory} />
+        </>
       ) : (
         <>
           <div style={{ marginTop: 16 }}>
@@ -351,6 +356,101 @@ export default function Admin() {
       <div style={{ textAlign: 'right', marginTop: 22 }}>
         <button className="btn-ghost" onClick={logout}>Sign out</button>
       </div>
+    </div>
+  );
+}
+
+function BullwhipChart({ history }) {
+  const [mode, setMode] = useState('table');
+  const [pick, setPick] = useState('1');
+  const rows = history || [];
+  const roles = ['Retailer', 'Wholesaler', 'Distributor', 'Factory'];
+  const tables = [1, 2, 3, 4];
+  const teamNames = [...new Set(rows.map((r) => r.team_name).filter(Boolean))].sort();
+  const maxRound = rows.reduce((m, r) => Math.max(m, r.round_number), 0);
+
+  function changeMode(m) {
+    setMode(m);
+    setPick(m === 'table' ? '1' : m === 'role' ? 'Retailer' : (teamNames[0] || ''));
+  }
+
+  const COLORS = { Retailer: '#35d0ff', Wholesaler: '#7c4dff', Distributor: '#3fe08f', Factory: '#ffb23e' };
+  const TCOL = ['#35d0ff', '#7c4dff', '#3fe08f', '#ffb23e'];
+  const demand = {};
+  rows.forEach((r) => { if (r.customer_demand != null) demand[r.round_number] = r.customer_demand; });
+
+  let series = [];
+  if (mode === 'table') {
+    const t = parseInt(pick, 10) || 1;
+    series = roles.map((role) => ({ label: role, color: COLORS[role],
+      points: rows.filter((r) => r.table_number === t && r.role === role).map((r) => ({ x: r.round_number, y: r.quantity })) }));
+  } else if (mode === 'role') {
+    series = tables.map((t, i) => ({ label: `Table ${t}`, color: TCOL[i],
+      points: rows.filter((r) => r.table_number === t && r.role === pick).map((r) => ({ x: r.round_number, y: r.quantity })) }));
+  } else {
+    const tr = rows.filter((r) => r.team_name === pick);
+    series = roles.map((role) => ({ label: role, color: COLORS[role],
+      points: tr.filter((r) => r.role === role).map((r) => ({ x: r.round_number, y: r.quantity })) })).filter((s) => s.points.length);
+  }
+  const dpts = Object.entries(demand).map(([r, v]) => ({ x: +r, y: v })).sort((a, b) => a.x - b.x);
+  const all = [...series, { label: 'Customer demand', color: '#cfc9ef', dashed: true, points: dpts }];
+  const maxY = Math.max(10, ...all.flatMap((s) => s.points.map((p) => p.y)));
+
+  const W = 720, H = 360, pl = 46, pr = 14, pt = 16, pb = 34;
+  const plotW = W - pl - pr, plotH = H - pt - pb;
+  const X = (r) => (maxRound > 1 ? pl + ((r - 1) / (maxRound - 1)) * plotW : pl + plotW / 2);
+  const Y = (v) => pt + (1 - v / maxY) * plotH;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxY * f));
+  const xTicks = [];
+  for (let r = 1; r <= maxRound; r++) if (r === 1 || r === maxRound || r % 5 === 0) xTicks.push(r);
+  const opts = mode === 'table' ? tables.map(String) : mode === 'role' ? roles : teamNames;
+
+  return (
+    <div className="card" style={{ marginTop: 16, padding: 22, background: 'linear-gradient(180deg, var(--panel-2), var(--panel))', border: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div className="display" style={{ fontSize: 24, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--ink)' }}>📈 THE BULLWHIP</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[['table', 'By table'], ['role', 'By role'], ['team', 'By team']].map(([k, label]) => (
+            <button key={k} onClick={() => changeMode(k)} className="display"
+              style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, letterSpacing: '0.06em', cursor: 'pointer',
+                border: `1px solid ${mode === k ? 'var(--cyan)' : 'var(--line)'}`, background: mode === k ? 'rgba(53,208,255,0.12)' : 'transparent',
+                color: mode === k ? 'var(--cyan)' : 'var(--ink-dim)' }}>{label}</button>
+          ))}
+          <select value={pick} onChange={(e) => setPick(e.target.value)} className="input" style={{ width: 'auto', padding: '6px 12px' }}>
+            {opts.map((o) => <option key={o} value={o}>{mode === 'table' ? `Table ${o}` : o}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--ink-dim)', margin: '4px 0 10px' }}>Order quantities up the chain vs. real customer demand — watch the swings amplify upstream.</div>
+
+      {maxRound === 0 ? (
+        <div style={{ color: 'var(--ink-dim)', padding: '40px 0', textAlign: 'center' }}>Order data appears once rounds have been played.</div>
+      ) : (
+        <>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
+            {yTicks.map((v, i) => (
+              <g key={i}>
+                <line x1={pl} y1={Y(v)} x2={W - pr} y2={Y(v)} stroke="#2b2350" strokeWidth="1" />
+                <text x={pl - 8} y={Y(v) + 4} textAnchor="end" fill="#9a91c4" fontSize="11" fontFamily="monospace">{v}</text>
+              </g>
+            ))}
+            {xTicks.map((r) => (<text key={r} x={X(r)} y={H - 12} textAnchor="middle" fill="#9a91c4" fontSize="11" fontFamily="monospace">{r}</text>))}
+            {all.map((s, i) => s.points.length > 0 && (
+              <polyline key={i} fill="none" stroke={s.color} strokeWidth={s.dashed ? 2 : 2.5}
+                strokeDasharray={s.dashed ? '5 4' : undefined} opacity={s.dashed ? 0.85 : 1}
+                points={s.points.map((p) => `${X(p.x)},${Y(p.y)}`).join(' ')} />
+            ))}
+          </svg>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
+            {all.map((s, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-dim)' }}>
+                <span style={{ width: 16, height: 3, background: s.color, display: 'inline-block', borderRadius: 2, opacity: s.dashed ? 0.85 : 1 }} />
+                {s.label}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
