@@ -5,8 +5,8 @@
    =================================================================== */
 :root {
   /* legacy tokens (existing screens) */
-  --bg: #0f0a1f;
-  --bg-glow: #271b4d;
+  --bg: #16122c;
+  --bg-glow: #34265f;
   --surface: #1a1333;
   --surface-2: #241a45;
   --border: #352a5f;
@@ -45,8 +45,9 @@ body {
 body::before {
   content: ""; position: fixed; inset: 0;
   background-image: url('/logo.png'); background-repeat: no-repeat;
-  background-position: center; background-size: min(720px, 82vw);
-  opacity: 0.14; pointer-events: none; z-index: -1;
+  background-position: center; background-size: min(760px, 84vw);
+  opacity: 0.22; filter: brightness(1.55) saturate(1.1);
+  pointer-events: none; z-index: -1;
 }
 
 .display { font-family: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif; }
