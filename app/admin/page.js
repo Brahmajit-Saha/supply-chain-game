@@ -39,6 +39,8 @@ export default function Admin() {
   const [now, setNow] = useState(Date.now());
   const [showDemand, setShowDemand] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [scores, setScores] = useState([]);
+  const [boardTab, setBoardTab] = useState('teams');
   const pollRef = useRef(null);
 
   const loadTables = useCallback(async () => {
@@ -57,6 +59,7 @@ export default function Admin() {
   const loadEngine = useCallback(async () => {
     const { data: ctrl } = await supabase.rpc('get_control'); setControl(ctrl && ctrl.length ? ctrl[0] : null);
     const { data: g } = await supabase.rpc('get_admin_grid'); setGrid(g || []);
+    const { data: sc } = await supabase.rpc('get_scores'); setScores(sc || []);
   }, []);
 
   useEffect(() => {
@@ -199,12 +202,7 @@ export default function Admin() {
       </div>
 
       {view === 'scoreboard' ? (
-        <div className="card" style={{ marginTop: 16, padding: '80px 24px', textAlign: 'center', background: 'linear-gradient(180deg, var(--panel-2), var(--panel))', border: '1px solid var(--line)' }}>
-          <div className="display" style={{ fontSize: 44, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--ink)' }}>🏆 SCOREBOARD</div>
-          <p style={{ color: 'var(--ink-dim)', maxWidth: 460, margin: '14px auto 0' }}>
-            The live team leaderboard, top performers, and the bullwhip chart appear here — wired up in the final phase, ready to project at the debrief.
-          </p>
-        </div>
+        <Leaderboard scores={scores} boardTab={boardTab} setBoardTab={setBoardTab} />
       ) : (
         <>
           <div style={{ marginTop: 16 }}>
@@ -352,6 +350,60 @@ export default function Admin() {
 
       <div style={{ textAlign: 'right', marginTop: 22 }}>
         <button className="btn-ghost" onClick={logout}>Sign out</button>
+      </div>
+    </div>
+  );
+}
+
+function Leaderboard({ scores, boardTab, setBoardTab }) {
+  const money = (v) => '$' + Math.round(Number(v || 0)).toLocaleString();
+  const rows = scores || [];
+
+  const teamAgg = {};
+  rows.forEach((s) => { if (!s.team_name) return; teamAgg[s.team_name] = (teamAgg[s.team_name] || 0) + Number(s.total_cost); });
+  const teams = Object.entries(teamAgg).map(([name, cost]) => ({ name, cost })).sort((a, b) => a.cost - b.cost);
+
+  const players = rows.filter((s) => s.player_name)
+    .map((s) => ({ name: s.player_name, sub: `${s.team_name || '—'} · Table ${s.table_number} · ${s.role}`, cost: Number(s.total_cost) }))
+    .sort((a, b) => a.cost - b.cost);
+
+  const tableAgg = {};
+  rows.forEach((s) => { tableAgg[s.table_number] = (tableAgg[s.table_number] || 0) + Number(s.total_cost); });
+  const tables = Object.entries(tableAgg).map(([num, cost]) => ({ name: `Table ${num}`, cost })).sort((a, b) => a.cost - b.cost);
+
+  const data = boardTab === 'teams' ? teams : boardTab === 'players' ? players : tables;
+  const medal = (i) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`);
+  const rankColor = (i) => (i === 0 ? 'var(--warn)' : i === 1 ? '#c9d4e3' : i === 2 ? '#e0955b' : 'var(--ink-dim)');
+
+  return (
+    <div className="card" style={{ marginTop: 16, padding: 22, background: 'linear-gradient(180deg, var(--panel-2), var(--panel))', border: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div className="display" style={{ fontSize: 30, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--ink)' }}>🏆 LEADERBOARD</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['teams', 'Teams'], ['players', 'Players'], ['tables', 'Tables']].map(([k, label]) => (
+            <button key={k} onClick={() => setBoardTab(k)} className="display"
+              style={{ padding: '6px 16px', borderRadius: 8, fontSize: 12, letterSpacing: '0.08em', cursor: 'pointer',
+                border: `1px solid ${boardTab === k ? 'var(--cyan)' : 'var(--line)'}`, background: boardTab === k ? 'rgba(53,208,255,0.12)' : 'transparent',
+                color: boardTab === k ? 'var(--cyan)' : 'var(--ink-dim)' }}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginTop: 4, letterSpacing: '0.04em' }}>LOWEST TOTAL COST WINS</div>
+
+      <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
+        {data.length === 0 ? (
+          <div style={{ color: 'var(--ink-dim)', padding: '30px 0', textAlign: 'center' }}>Scores appear once the game is running.</div>
+        ) : data.map((row, i) => (
+          <div key={row.name} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderRadius: 12,
+            background: i === 0 ? 'rgba(255,178,62,0.08)' : 'var(--panel)', border: `1px solid ${i === 0 ? 'rgba(255,178,62,0.4)' : 'var(--line)'}` }}>
+            <div className="display" style={{ fontSize: 22, width: 46, textAlign: 'center', color: rankColor(i) }}>{medal(i)}</div>
+            <div style={{ flex: 1 }}>
+              <div className="display" style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>{row.name}</div>
+              {row.sub && <div style={{ fontSize: 12, color: 'var(--ink-dim)' }}>{row.sub}</div>}
+            </div>
+            <div className="mono" style={{ fontSize: 22, color: i === 0 ? 'var(--warn)' : 'var(--ink)' }}>{money(row.cost)}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
