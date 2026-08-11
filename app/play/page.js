@@ -120,17 +120,15 @@ export default function Play() {
           <div className="station"><div className="role">Arriving next</div><div className="inv mono" style={{ fontSize: 26 }}>{play.incoming_next ?? 0}</div></div>
         </div>
 
-        <div className="station" style={{ marginTop: 12 }}>
-          <div className="role">{play.my_role === 'Retailer' ? 'Customer demand this round' : 'Order from your customer'}</div>
-          <div className="inv mono" style={{ fontSize: 30, color: 'var(--cyan)' }}>{play.demand_below == null ? '—' : play.demand_below}</div>
-        </div>
-
-        {/* This round's cost — live decision aid */}
-        <div className="station" style={{ marginTop: 12, borderColor: 'var(--warn)' }}>
-          <div className="role" style={{ color: 'var(--warn)' }}>This round&apos;s cost</div>
-          <div style={{ display: 'flex', gap: 18, alignItems: 'baseline', flexWrap: 'wrap', marginTop: 4 }}>
-            <div className="mono" style={{ fontSize: 30, color: 'var(--ink)' }}>{money(play.round_total)}</div>
-            <div className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)' }}>
+        <div className="chain" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 12 }}>
+          <div className="station">
+            <div className="role">{play.my_role === 'Retailer' ? 'Customer demand this round' : 'Order from your customer'}</div>
+            <div className="inv mono" style={{ fontSize: 30, color: 'var(--cyan)' }}>{play.demand_below == null ? '—' : play.demand_below}</div>
+          </div>
+          <div className="station" style={{ borderColor: 'var(--warn)' }}>
+            <div className="role" style={{ color: 'var(--warn)' }}>This round&apos;s cost</div>
+            <div className="mono" style={{ fontSize: 30, color: 'var(--ink)', marginTop: 2 }}>{money(play.round_total)}</div>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)', marginTop: 4, lineHeight: 1.5 }}>
               holding {money(play.round_holding)} · backlog {money(play.round_backlog)} · transport {money(play.round_transport)}
             </div>
           </div>
