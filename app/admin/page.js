@@ -12,7 +12,7 @@ const PHASE_LABEL = {
   ordering_retailer: 'Ordering · Retailer', ordering_wholesaler: 'Ordering · Wholesaler',
   ordering_distributor: 'Ordering · Distributor', ordering_factory: 'Ordering · Factory', resolved: 'Round resolved',
 };
-const PHASE_SECS = { strategy: 30, ordering_retailer: 10, ordering_wholesaler: 10, ordering_distributor: 10, ordering_factory: 10 };
+const PHASE_SECS = { strategy: 30, ordering_retailer: 15, ordering_wholesaler: 15, ordering_distributor: 15, ordering_factory: 15 };
 
 export default function Admin() {
   const router = useRouter();
