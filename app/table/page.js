@@ -12,7 +12,7 @@ const PHASE_LABEL = {
   ordering_retailer: 'Retailer ordering', ordering_wholesaler: 'Wholesaler ordering',
   ordering_distributor: 'Distributor ordering', ordering_factory: 'Factory ordering', resolved: 'Round resolved',
 };
-const PHASE_SECS = { strategy: 30, ordering_retailer: 10, ordering_wholesaler: 10, ordering_distributor: 10, ordering_factory: 10 };
+const PHASE_SECS = { strategy: 30, ordering_retailer: 15, ordering_wholesaler: 15, ordering_distributor: 15, ordering_factory: 15 };
 const money = (v) => '$' + Math.round(Number(v || 0)).toLocaleString();
 
 export default function TableAdminView() {
