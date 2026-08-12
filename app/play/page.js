@@ -10,7 +10,7 @@ const PHASE_LABEL = {
   ordering_retailer: "Retailer's turn", ordering_wholesaler: "Wholesaler's turn",
   ordering_distributor: "Distributor's turn", ordering_factory: "Factory's turn", resolved: 'Round resolved',
 };
-const PHASE_SECS = { strategy: 30, ordering_retailer: 10, ordering_wholesaler: 10, ordering_distributor: 10, ordering_factory: 10 };
+const PHASE_SECS = { strategy: 30, ordering_retailer: 15, ordering_wholesaler: 15, ordering_distributor: 15, ordering_factory: 15 };
 const UPSTREAM = { Retailer: 'Wholesaler', Wholesaler: 'Distributor', Distributor: 'Factory', Factory: 'your supplier' };
 const money = (v) => '$' + Math.round(Number(v || 0)).toLocaleString();
 
@@ -116,8 +116,8 @@ export default function Play() {
         <div className="chain" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 6 }}>
           <div className="station"><div className="role">In stock</div><div className="inv mono" style={{ fontSize: 34 }}>{play.inventory ?? '—'}</div></div>
           <div className="station"><div className="role">Backlog owed</div><div className="inv mono" style={{ fontSize: 34, color: Number(play.backlog) > 0 ? 'var(--bad)' : 'var(--ink)' }}>{play.backlog ?? '—'}</div></div>
-          <div className="station"><div className="role">Arriving now</div><div className="inv mono" style={{ fontSize: 26 }}>{play.incoming_this ?? 0}</div></div>
-          <div className="station"><div className="role">Arriving next</div><div className="inv mono" style={{ fontSize: 26 }}>{play.incoming_next ?? 0}</div></div>
+          <div className="station"><div className="role">Arriving next round</div><div className="inv mono" style={{ fontSize: 26 }}>{play.incoming_next ?? 0}</div></div>
+          <div className="station"><div className="role">In-Transit{play.intransit_round ? ` · arrives R${play.intransit_round}` : ''}</div><div className="inv mono" style={{ fontSize: 26 }}>{play.intransit_qty ?? 0}</div></div>
         </div>
 
         <div className="chain" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 12 }}>
@@ -161,7 +161,7 @@ export default function Play() {
             <>
               <div style={{ fontSize: 13, color: 'var(--cyan)', marginBottom: 8 }}>▶ YOUR TURN{remaining != null ? ` · ${remaining}s` : ''} — order from the <b>{UPSTREAM[play.my_role]}</b></div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <input className="input" type="number" min="0" value={orderQty} onChange={(e) => setOrderQty(e.target.value)} placeholder="Quantity" style={{ flex: 1 }} autoFocus />
+                <input className="input" type="number" min="0" max="500" value={orderQty} onChange={(e) => setOrderQty(e.target.value)} placeholder="Quantity (max 500)" style={{ flex: 1 }} autoFocus />
                 <button className="btn btn-primary" onClick={placeOrder} disabled={ordering} style={{ minWidth: 120 }}>{ordering ? 'Placing…' : 'Place order'}</button>
               </div>
               {orderMsg && <div className="error-box" style={{ marginTop: 10 }}>{orderMsg}</div>}
