@@ -146,7 +146,7 @@ export default function Play() {
 
         {/* Static cost-rate reminder */}
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.02em', textAlign: 'center' }}>
-          💡 Holding <b style={{ color: 'var(--ink)' }}>$5</b>/unit · Backlog <b style={{ color: 'var(--ink)' }}>$10</b>/unit · Transport <b style={{ color: 'var(--ink)' }}>$2</b>/truck (6u, +$1 if last truck &lt; 5)
+          💡 Holding <b style={{ color: 'var(--ink)' }}>$5</b>/unit · Backlog <b style={{ color: 'var(--ink)' }}>$10</b>/unit · Transport <b style={{ color: 'var(--ink)' }}>$3</b>/truck (7u, +$2 if last truck &lt; 6)
         </div>
 
         {/* order box */}
