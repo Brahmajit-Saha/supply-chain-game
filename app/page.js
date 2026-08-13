@@ -32,26 +32,32 @@ export default function Login() {
     }
 
     setLoading(true);
-    const creds = { email: cleanEmail, password };
 
-    // Existing account? sign in against their stored password.
-    const { error: signInError } = await supabase.auth.signInWithPassword(creds);
+    // The typed password is a GATE only: it must match the password for this
+    // email's CURRENT role (MA / Table Admin / player). The actual Supabase
+    // account uses a fixed internal password derived from the email, so a
+    // person's role can change later without ever breaking their login.
+    const { data: ok, error: chkErr } = await supabase.rpc('password_matches', {
+      p_email: cleanEmail,
+      p_password: password,
+    });
+    if (chkErr) { setError(chkErr.message); setLoading(false); return; }
+    if (!ok) {
+      setError('Incorrect password. Use the password for your role (Master Admin, Table Admin, or Player).');
+      setLoading(false);
+      return;
+    }
 
+    const internalPw = `opsphere::${cleanEmail}::v1`;
+    const creds = { email: cleanEmail, password: internalPw };
+
+    let { error: signInError } = await supabase.auth.signInWithPassword(creds);
     if (signInError) {
-      // New account — the password must match the one required for this
-      // email's role (MA / Table Admin / player), or we don't create it.
-      const { data: ok, error: chkErr } = await supabase.rpc('password_matches', {
-        p_email: cleanEmail,
-        p_password: password,
-      });
-      if (chkErr) { setError(chkErr.message); setLoading(false); return; }
-      if (!ok) { setError('Incorrect password for this account.'); setLoading(false); return; }
-
       const { error: signUpError } = await supabase.auth.signUp(creds);
       if (signUpError) {
         const msg = (signUpError.message || '').toLowerCase();
         if (msg.includes('already registered')) {
-          setError('That account exists, but the password is incorrect.');
+          setError('This account was created under the old sign-in system. Ask the organiser to remove it in Supabase (Authentication → Users), then sign in again.');
         } else if (msg.includes(ALLOWED_DOMAIN) || msg.includes('allowed')) {
           setError(`Please use your @${ALLOWED_DOMAIN} email address.`);
         } else {
@@ -60,6 +66,9 @@ export default function Login() {
         setLoading(false);
         return;
       }
+      // Email confirmation is off, so sign-up returns a session; make sure.
+      const retry = await supabase.auth.signInWithPassword(creds);
+      if (retry.error) { setError('Account created — please click Sign in once more.'); setLoading(false); return; }
     }
 
     router.replace('/home');
