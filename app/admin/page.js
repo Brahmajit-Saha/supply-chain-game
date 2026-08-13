@@ -42,6 +42,9 @@ export default function Admin() {
   const [scores, setScores] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
   const [boardTab, setBoardTab] = useState('teams');
+  const [settings, setSettings] = useState(null);
+  const [sMsg, setSMsg] = useState('');
+  const [sBusy, setSBusy] = useState(false);
   const pollRef = useRef(null);
 
   const loadTables = useCallback(async () => {
@@ -62,6 +65,7 @@ export default function Admin() {
     const { data: g } = await supabase.rpc('get_admin_grid'); setGrid(g || []);
     const { data: sc } = await supabase.rpc('get_scores'); setScores(sc || []);
     const { data: oh } = await supabase.rpc('get_order_history'); setOrderHistory(oh || []);
+    const { data: st } = await supabase.rpc('get_game_settings'); if (st && st[0]) setSettings(st[0]);
   }, []);
 
   useEffect(() => {
@@ -135,6 +139,14 @@ export default function Admin() {
   const pauseGame = () => eng('pause_game');
   const resumeGame = () => eng('resume_game');
   const redoRound = () => eng('redo_round', 'Redo this round? Everything players did this round is discarded and it restarts with new demand.');
+  async function saveSettings(v) {
+    setSBusy(true); setSMsg('');
+    const { error } = await supabase.rpc('set_game_settings', {
+      p_demand_max: v.demand_max, p_max_order: v.max_order_qty,
+      p_strategy_sec: v.strategy_timer_sec, p_order_sec: v.order_timer_sec });
+    if (error) setSMsg('Error: ' + error.message); else setSMsg('Settings saved — they take effect from the next round.');
+    await loadEngine(); setSBusy(false);
+  }
   async function toggleDemandSharing() {
     setEngineBusy(true);
     await supabase.rpc('set_demand_sharing', { p_on: !control?.demand_sharing });
@@ -251,6 +263,11 @@ export default function Admin() {
             )}
           </div>
 
+          {/* Game settings — editable before start or while paused */}
+          {(status === 'setup' || paused) && (
+            <GameSettings settings={settings} onSave={saveSettings} busy={sBusy} msg={sMsg} />
+          )}
+
           {/* Live 4x4 board (hidden by default) */}
           {status !== 'setup' && showGrid && grid.length > 0 && (
             <div className="card" style={{ marginTop: 12, padding: 16, overflowX: 'auto' }}>
@@ -355,6 +372,48 @@ export default function Admin() {
 
       <div style={{ textAlign: 'right', marginTop: 22 }}>
         <button className="btn-ghost" onClick={logout}>Sign out</button>
+      </div>
+    </div>
+  );
+}
+
+function GameSettings({ settings, onSave, busy, msg }) {
+  const [d, setD] = useState(settings || {});
+  useEffect(() => { if (settings) setD(settings); }, [settings]);
+  if (!settings) return null;
+  const num = (v) => (v === '' ? '' : parseInt(v, 10));
+  const set = (k) => (e) => setD((p) => ({ ...p, [k]: num(e.target.value) }));
+  const Field = ({ k, label, hint, unit }) => (
+    <div style={{ flex: '1 1 200px' }}>
+      <label style={{ fontSize: 13, color: 'var(--ink-dim)', display: 'block', marginBottom: 6 }}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input className="input" type="number" value={d[k] ?? ''} onChange={set(k)} style={{ width: 110 }} />
+        {unit && <span style={{ fontSize: 13, color: 'var(--ink-dim)' }}>{unit}</span>}
+      </div>
+      {hint && <div style={{ fontSize: 11, color: 'var(--ink-dim)', marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+  return (
+    <div className="card" style={{ marginTop: 12, padding: 20 }}>
+      <div className="eyebrow" style={{ color: 'var(--cyan)' }}>Game settings</div>
+      <div className="display" style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)', margin: '2px 0 4px' }}>Tune the game</div>
+      <p style={{ color: 'var(--ink-dim)', fontSize: 13, margin: '0 0 16px' }}>Editable before kickoff and whenever the game is paused. Changes take effect from the next round.</p>
+
+      <div style={{ fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.08em', marginBottom: 10 }}>DEMAND &amp; ORDERS</div>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 18 }}>
+        <Field k="demand_max" label="Peak customer demand" unit="units" hint="Top of the random demand range (0–this)." />
+        <Field k="max_order_qty" label="Order ceiling" unit="units" hint="Most a player may order in one round." />
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.08em', marginBottom: 10 }}>ROUND TIMERS</div>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <Field k="strategy_timer_sec" label="Strategy time" unit="sec" hint="Thinking window at the top of each round." />
+        <Field k="order_timer_sec" label="Decision time (per role)" unit="sec" hint="Seconds each role gets to place its order." />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={() => onSave(d)} disabled={busy} style={{ minWidth: 140 }}>{busy ? 'Saving…' : 'Save settings'}</button>
+        {msg && <span style={{ fontSize: 13, color: msg.startsWith('Error') ? 'var(--bad)' : 'var(--good)' }}>{msg}</span>}
       </div>
     </div>
   );
