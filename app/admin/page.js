@@ -45,6 +45,8 @@ export default function Admin() {
   const [settings, setSettings] = useState(null);
   const [sMsg, setSMsg] = useState('');
   const [sBusy, setSBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState('');
   const pollRef = useRef(null);
 
   const loadTables = useCallback(async () => {
@@ -139,6 +141,26 @@ export default function Admin() {
   const pauseGame = () => eng('pause_game');
   const resumeGame = () => eng('resume_game');
   const redoRound = () => eng('redo_round', 'Redo this round? Everything players did this round is discarded and it restarts with new demand.');
+  async function downloadExcel() {
+    setExporting(true); setExportMsg('Gathering data…');
+    try {
+      const [led, ord, scr] = await Promise.all([
+        supabase.rpc('get_full_ledger'),
+        supabase.rpc('get_order_history'),
+        supabase.rpc('get_scores'),
+      ]);
+      if (led.error) throw led.error;
+      const ledger = led.data || [], orders = ord.data || [], scores = scr.data || [];
+      if (ledger.length === 0 && orders.length === 0) { setExportMsg('No game data yet — play a few rounds first.'); setExporting(false); return; }
+      setExportMsg('Building workbook…');
+      await buildWorkbook({ ledger, orders, scores, round: control?.current_round || 0 });
+      setExportMsg('Downloaded ✓');
+    } catch (e) {
+      setExportMsg('Error: ' + (e.message || e));
+    }
+    setExporting(false);
+  }
+
   async function saveSettings(v) {
     setSBusy(true); setSMsg('');
     const { error } = await supabase.rpc('set_game_settings', {
@@ -217,6 +239,10 @@ export default function Admin() {
 
       {view === 'scoreboard' ? (
         <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 14 }}>
+            {exportMsg && <span style={{ fontSize: 13, color: exportMsg.startsWith('Error') ? 'var(--bad)' : 'var(--ink-dim)' }}>{exportMsg}</span>}
+            <button className="btn-ghost" onClick={downloadExcel} disabled={exporting}>{exporting ? 'Building…' : '⬇ Download Excel'}</button>
+          </div>
           <Leaderboard scores={scores} boardTab={boardTab} setBoardTab={setBoardTab} />
           <BullwhipChart history={orderHistory} />
         </>
@@ -375,6 +401,123 @@ export default function Admin() {
       </div>
     </div>
   );
+}
+
+// ---------- Excel export helpers ----------
+const ROLES4 = ['Retailer', 'Wholesaler', 'Distributor', 'Factory'];
+const ROLE_COLORS = { Retailer: '#35d0ff', Wholesaler: '#7c4dff', Distributor: '#3fe08f', Factory: '#ffb23e' };
+
+function bullwhipPNG(orders, table, maxR) {
+  const W = 760, H = 380, pl = 52, pr = 20, pt = 34, pb = 46;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#0f0a1f'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#f0edff'; g.font = 'bold 15px sans-serif';
+  g.fillText(`Bullwhip — Table ${table}  (order quantity vs. customer demand)`, pl, 20);
+
+  const demand = {}; orders.forEach((o) => { if (o.customer_demand != null) demand[o.round_number] = o.customer_demand; });
+  const series = ROLES4.map((role) => {
+    const pts = [];
+    for (let r = 1; r <= maxR; r++) { const o = orders.find((x) => x.table_number === table && x.role === role && x.round_number === r); if (o) pts.push([r, o.quantity]); }
+    return { label: role, color: ROLE_COLORS[role], pts };
+  });
+  const dpts = []; for (let r = 1; r <= maxR; r++) if (demand[r] != null) dpts.push([r, demand[r]]);
+  const maxY = Math.max(10, ...series.flatMap((s) => s.pts.map((p) => p[1])), ...dpts.map((p) => p[1]));
+  const X = (r) => (maxR > 1 ? pl + ((r - 1) / (maxR - 1)) * (W - pl - pr) : pl);
+  const Y = (v) => pt + (1 - v / maxY) * (H - pt - pb);
+
+  g.strokeStyle = '#2b2350'; g.lineWidth = 1; g.fillStyle = '#9a91c4'; g.font = '11px monospace';
+  for (let i = 0; i <= 4; i++) { const v = Math.round((maxY * i) / 4); const y = Y(v); g.beginPath(); g.moveTo(pl, y); g.lineTo(W - pr, y); g.stroke(); g.fillText(String(v), 10, y + 4); }
+  for (let r = 1; r <= maxR; r++) if (r === 1 || r === maxR || r % 5 === 0) g.fillText(String(r), X(r) - 5, H - 22);
+
+  const line = (pts, color, dash) => { g.setLineDash(dash || []); g.strokeStyle = color; g.lineWidth = dash ? 2 : 2.5; g.beginPath(); pts.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); g.setLineDash([]); };
+  line(dpts, '#cfc9ef', [5, 4]);
+  series.forEach((s) => line(s.pts, s.color));
+
+  let lx = pl; g.font = '11px sans-serif';
+  [...series, { label: 'Customer demand', color: '#cfc9ef' }].forEach((s) => { g.fillStyle = s.color; g.fillRect(lx, H - 12, 14, 3); g.fillStyle = '#cfc9ef'; g.fillText(s.label, lx + 18, H - 8); lx += g.measureText(s.label).width + 34; });
+  return c.toDataURL('image/png').split(',')[1];
+}
+
+async function buildWorkbook({ ledger, orders, scores, round }) {
+  const mod = await import('exceljs');
+  const ExcelJS = mod.default || mod;
+  const wb = new ExcelJS.Workbook();
+  const money = (v) => Math.round(Number(v || 0));
+  const cost = (r) => Number(r.holding_cost) + Number(r.backlog_cost) + Number(r.transport_cost);
+  const maxR = ledger.reduce((m, r) => Math.max(m, r.round_number), 0);
+
+  // ----- final leaderboards (from scores) -----
+  const teamAgg = {}, tableAgg = {};
+  scores.forEach((s) => { if (s.team_name) teamAgg[s.team_name] = (teamAgg[s.team_name] || 0) + Number(s.total_cost); tableAgg[s.table_number] = (tableAgg[s.table_number] || 0) + Number(s.total_cost); });
+  const teams = Object.entries(teamAgg).map(([name, c]) => ({ name, c })).sort((a, b) => a.c - b.c);
+  const tables = Object.entries(tableAgg).map(([n, c]) => ({ name: `Table ${n}`, c })).sort((a, b) => a.c - b.c);
+  const players = scores.filter((s) => s.player_name).map((s) => ({ name: s.player_name, sub: `${s.team_name || '—'} · Table ${s.table_number} · ${s.role}`, c: Number(s.total_cost) })).sort((a, b) => a.c - b.c);
+
+  const wsL = wb.addWorksheet('Leaderboards');
+  const header = (ws, cells) => { const row = ws.addRow(cells); row.font = { bold: true }; return row; };
+  wsL.addRow(['OPSPHERE — Final standings (lowest total cost wins)']).font = { bold: true, size: 14 };
+  wsL.addRow([`Through round ${round}`]); wsL.addRow([]);
+  header(wsL, ['TEAMS']); header(wsL, ['Rank', 'Team', 'Total cost']);
+  teams.forEach((t, i) => wsL.addRow([i + 1, t.name, money(t.c)]));
+  wsL.addRow([]);
+  header(wsL, ['TABLES']); header(wsL, ['Rank', 'Table', 'Total cost']);
+  tables.forEach((t, i) => wsL.addRow([i + 1, t.name, money(t.c)]));
+  wsL.addRow([]);
+  header(wsL, ['PLAYERS']); header(wsL, ['Rank', 'Player', 'Team · Table · Role', 'Total cost']);
+  players.forEach((p, i) => wsL.addRow([i + 1, p.name, p.sub, money(p.c)]));
+  wsL.columns.forEach((col) => { col.width = 22; });
+
+  // ----- round-by-round cumulative -----
+  const cumMatrix = (keyFn) => {
+    const per = {};
+    ledger.forEach((r) => { const k = keyFn(r); if (k == null) return; if (!per[k]) per[k] = Array(maxR + 1).fill(0); per[k][r.round_number] += cost(r); });
+    const out = {}; Object.entries(per).forEach(([k, arr]) => { let s = 0; const cum = []; for (let i = 1; i <= maxR; i++) { s += arr[i]; cum.push(Math.round(s)); } out[k] = cum; });
+    return out;
+  };
+  const roundSheet = (title, matrix) => {
+    const ws = wb.addWorksheet(title);
+    header(ws, ['', ...Array.from({ length: maxR }, (_, i) => `R${i + 1}`)]);
+    Object.entries(matrix).sort((a, b) => a[1][maxR - 1] - b[1][maxR - 1]).forEach(([k, cum]) => ws.addRow([k, ...cum]));
+    ws.getColumn(1).width = 30;
+  };
+  roundSheet('Teams by round', cumMatrix((r) => r.team_name));
+  roundSheet('Tables by round', cumMatrix((r) => `Table ${r.table_number}`));
+  roundSheet('Players by round', cumMatrix((r) => (r.player_name ? `${r.player_name} (${r.role}, T${r.table_number})` : null)));
+
+  // ----- bullwhip data -----
+  const maxRo = orders.reduce((m, r) => Math.max(m, r.round_number), 0);
+  const wsB = wb.addWorksheet('Bullwhip data');
+  [1, 2, 3, 4].forEach((t) => {
+    wsB.addRow([`Table ${t}`]).font = { bold: true };
+    header(wsB, ['Round', 'Customer demand', ...ROLES4]);
+    for (let r = 1; r <= maxRo; r++) {
+      const dem = orders.find((o) => o.round_number === r)?.customer_demand ?? '';
+      const q = (role) => orders.find((o) => o.table_number === t && o.role === role && o.round_number === r)?.quantity ?? '';
+      wsB.addRow([r, dem, q('Retailer'), q('Wholesaler'), q('Distributor'), q('Factory')]);
+    }
+    wsB.addRow([]);
+  });
+  wsB.columns.forEach((col) => { col.width = 15; });
+
+  // ----- bullwhip charts as images -----
+  if (maxRo > 0) {
+    const wsC = wb.addWorksheet('Bullwhip charts');
+    let anchor = 0;
+    for (const t of [1, 2, 3, 4]) {
+      const b64 = bullwhipPNG(orders, t, maxRo);
+      const id = wb.addImage({ base64: b64, extension: 'png' });
+      wsC.addImage(id, { tl: { col: 0, row: anchor }, ext: { width: 760, height: 380 } });
+      anchor += 21;
+    }
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `OPSPHERE-results-R${round}.xlsx`; document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
 }
 
 function GameSettings({ settings, onSave, busy, msg }) {
