@@ -28,6 +28,7 @@ export default function Admin() {
   const [taMsg, setTaMsg] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [teamCounts, setTeamCounts] = useState([]);
+  const [playerCount, setPlayerCount] = useState(0);
   const [overview, setOverview] = useState([]);
   const [generating, setGenerating] = useState(false);
   const [seatMsg, setSeatMsg] = useState('');
@@ -60,7 +61,18 @@ export default function Admin() {
     }
     setTables(rows.map((t) => ({ ...t, admin: t.table_admin_id ? byId[t.table_admin_id] : null })));
   }, []);
-  const loadCounts = useCallback(async () => { const { data } = await supabase.rpc('get_team_counts'); setTeamCounts(data || []); }, []);
+  const loadTeams = useCallback(async () => {
+    const { data: m } = await supabase.rpc('get_roster_mode');
+    const mode = m || 'standard';
+    const expected = mode === 'pairs' ? 8 : mode === 'individual' ? 0 : 4;
+    const { data } = await supabase.from('team').select('id, name').order('id');
+    const rows = data || [];
+    setTeams(Array.from({ length: expected }, (_, i) => (rows[i] ? { id: rows[i].id, name: rows[i].name } : { name: '' })));
+  }, []);
+  const loadCounts = useCallback(async () => {
+    const { data } = await supabase.rpc('get_team_counts'); setTeamCounts(data || []);
+    const { data: pc } = await supabase.rpc('get_player_count'); setPlayerCount(pc ?? 0);
+  }, []);
   const loadOverview = useCallback(async () => { const { data } = await supabase.rpc('get_seating_overview'); setOverview(data || []); }, []);
   const loadEngine = useCallback(async () => {
     const { data: ctrl } = await supabase.rpc('get_control'); setControl(ctrl && ctrl.length ? ctrl[0] : null);
@@ -76,15 +88,12 @@ export default function Admin() {
       if (!sess.session) { router.replace('/'); return; }
       const { data: prof } = await supabase.from('profiles').select('system_role').eq('id', sess.session.user.id).single();
       if (!prof || prof.system_role !== 'MA') { router.replace('/home'); return; }
-      const { data: existing } = await supabase.from('team').select('id, name').order('id');
-      const slots = EMPTY_TEAMS.map((s) => ({ ...s }));
-      (existing || []).slice(0, 4).forEach((t, i) => { slots[i] = { id: t.id, name: t.name }; });
-      setTeams(slots);
+      await loadTeams();
       await loadTables(); await loadCounts(); await loadOverview(); await loadEngine();
       setLoading(false);
     }
     init();
-  }, [router, loadTables, loadCounts, loadOverview, loadEngine]);
+  }, [router, loadTeams, loadTables, loadCounts, loadOverview, loadEngine]);
 
   useEffect(() => {
     if (control?.status === 'running' || control?.status === 'paused') {
@@ -161,6 +170,16 @@ export default function Admin() {
     setExporting(false);
   }
 
+  async function setRoster(m) {
+    if (m === (control?.roster_mode || 'standard')) return;
+    if (!window.confirm(`Switch roster to “${m}”? This clears the current team list and any players who have joined, so set this before people sign in.`)) return;
+    setEngineBusy(true); setEngineMsg('');
+    const { error } = await supabase.rpc('set_roster_mode', { p_mode: m });
+    if (error) setEngineMsg('Error: ' + error.message);
+    await loadEngine(); await loadTeams(); await loadCounts(); await loadOverview();
+    setEngineBusy(false);
+  }
+
   async function saveSettings(v) {
     setSBusy(true); setSMsg('');
     const { error } = await supabase.rpc('set_game_settings', {
@@ -183,10 +202,14 @@ export default function Admin() {
   const running = status === 'running', paused = status === 'paused';
   const maRemaining = control?.phase_ends_at && running ? Math.max(0, Math.ceil((new Date(control.phase_ends_at).getTime() - now) / 1000)) : null;
   const barPct = maRemaining != null ? Math.max(0, Math.min(100, (maRemaining / (PHASE_SECS[control?.phase] || 2)) * 100)) : 0;
+  const mode = control?.roster_mode || 'standard';
   const totalPlayers = teamCounts.reduce((s, t) => s + Number(t.member_count), 0);
-  const fourFullTeams = teamCounts.length === 4 && teamCounts.every((t) => Number(t.member_count) === 4);
+  const teamsOk = mode === 'pairs'
+    ? (teamCounts.length === 8 && teamCounts.every((t) => Number(t.member_count) === 2))
+    : (teamCounts.length === 4 && teamCounts.every((t) => Number(t.member_count) === 4));
+  const joinedOk = mode === 'individual' ? playerCount === 16 : teamsOk;
   const tasLoggedIn = tables.filter((t) => t.table_admin_id).length;
-  const ready = fourFullTeams && tasLoggedIn === 4;
+  const ready = joinedOk && tasLoggedIn === 4;
   const seated = overview.length > 0;
   const seatGrid = {}; overview.forEach((r) => { seatGrid[`${r.role}|${r.table_number}`] = r; });
   const liveGrid = {}; grid.forEach((r) => { liveGrid[`${r.role}|${r.table_number}`] = r; });
@@ -243,7 +266,7 @@ export default function Admin() {
             {exportMsg && <span style={{ fontSize: 13, color: exportMsg.startsWith('Error') ? 'var(--bad)' : 'var(--ink-dim)' }}>{exportMsg}</span>}
             <button className="btn-ghost" onClick={downloadExcel} disabled={exporting}>{exporting ? 'Building…' : '⬇ Download Excel'}</button>
           </div>
-          <Leaderboard scores={scores} boardTab={boardTab} setBoardTab={setBoardTab} />
+          <Leaderboard scores={scores} boardTab={boardTab} setBoardTab={setBoardTab} mode={mode} />
           <BullwhipChart history={orderHistory} />
         </>
       ) : (
@@ -291,7 +314,8 @@ export default function Admin() {
 
           {/* Game settings — editable before start or while paused */}
           {(status === 'setup' || paused) && (
-            <GameSettings settings={settings} onSave={saveSettings} busy={sBusy} msg={sMsg} />
+            <GameSettings settings={settings} onSave={saveSettings} busy={sBusy} msg={sMsg}
+              mode={mode} status={status} onSetRoster={setRoster} rosterBusy={engineBusy} />
           )}
 
           {/* Live 4x4 board (hidden by default) */}
@@ -328,20 +352,29 @@ export default function Admin() {
 
           {setupOpen && (
             <div style={{ marginTop: 12 }}>
-              <div className="card" style={{ padding: 22 }}>
-                <h2 style={cardTitle}>Teams</h2>
-                <p style={cardSub}>Name the four teams. Players pick from these when they sign in.</p>
-                {teams.map((t, i) => (
-                  <div key={i} style={{ marginBottom: 12 }}>
-                    <label style={fieldLabel}>Team {i + 1}</label>
-                    <input className="input" value={t.name} onChange={(e) => setTeamName(i, e.target.value)} placeholder={`e.g. Team ${i + 1}`} />
-                  </div>
-                ))}
-                <div style={actionRow}>
-                  <button className="btn btn-primary" onClick={saveTeams} disabled={savingTeams} style={{ minWidth: 140 }}>{savingTeams ? 'Saving…' : 'Save teams'}</button>
-                  {teamMsg && <span style={msgStyle(teamMsg)}>{teamMsg}</span>}
+              {mode === 'individual' ? (
+                <div className="card" style={{ padding: 22 }}>
+                  <h2 style={cardTitle}>Teams</h2>
+                  <p style={cardSub}>Individual mode — players don&apos;t join teams. Everyone plays solo and is ranked individually.</p>
                 </div>
-              </div>
+              ) : (
+                <div className="card" style={{ padding: 22 }}>
+                  <h2 style={cardTitle}>{mode === 'pairs' ? 'Pairs' : 'Teams'}</h2>
+                  <p style={cardSub}>{mode === 'pairs'
+                    ? 'Name the eight pairs. Two players each — they sit together and play two roles of one chain.'
+                    : 'Name the four teams. Players pick from these when they sign in.'}</p>
+                  {teams.map((t, i) => (
+                    <div key={i} style={{ marginBottom: 12 }}>
+                      <label style={fieldLabel}>{mode === 'pairs' ? 'Pair' : 'Team'} {i + 1}</label>
+                      <input className="input" value={t.name} onChange={(e) => setTeamName(i, e.target.value)} placeholder={`e.g. ${mode === 'pairs' ? 'Pair' : 'Team'} ${i + 1}`} />
+                    </div>
+                  ))}
+                  <div style={actionRow}>
+                    <button className="btn btn-primary" onClick={saveTeams} disabled={savingTeams} style={{ minWidth: 140 }}>{savingTeams ? 'Saving…' : 'Save'}</button>
+                    {teamMsg && <span style={msgStyle(teamMsg)}>{teamMsg}</span>}
+                  </div>
+                </div>
+              )}
 
               <div className="card" style={{ padding: 22, marginTop: 16 }}>
                 <h2 style={cardTitle}>Table Admins</h2>
@@ -364,7 +397,10 @@ export default function Admin() {
                 <h2 style={cardTitle}>Seating</h2>
                 <p style={cardSub}>When the room is ready, generate seating. Everyone&apos;s role, table, and TA appear on their screen at once.</p>
                 <div style={{ display: 'grid', gap: 6, marginBottom: 16 }}>
-                  <Check ok={fourFullTeams} label={`Four teams of four (${totalPlayers}/16 players joined)`} />
+                  <Check ok={joinedOk} label={
+                    mode === 'individual' ? `16 individual players joined (${playerCount}/16)`
+                    : mode === 'pairs' ? `Eight pairs of two (${totalPlayers}/16 players joined)`
+                    : `Four teams of four (${totalPlayers}/16 players joined)`} />
                   <Check ok={tasLoggedIn === 4} label={`Table Admins logged in (${tasLoggedIn}/4)`} />
                 </div>
                 <div style={actionRow}>
@@ -520,7 +556,8 @@ async function buildWorkbook({ ledger, orders, scores, round }) {
   a.remove(); URL.revokeObjectURL(url);
 }
 
-function GameSettings({ settings, onSave, busy, msg }) {
+function GameSettings({ settings, onSave, busy, msg, mode, status, onSetRoster, rosterBusy }) {
+  const ROSTERS = [['standard', 'Standard', '4 teams of 4'], ['pairs', 'Pairs', '8 teams of 2'], ['individual', 'Individual', '16 solo players']];
   const [d, setD] = useState(settings || {});
   useEffect(() => { if (settings) setD(settings); }, [settings]);
   if (!settings) return null;
@@ -541,6 +578,22 @@ function GameSettings({ settings, onSave, busy, msg }) {
       <div className="eyebrow" style={{ color: 'var(--cyan)' }}>Game settings</div>
       <div className="display" style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)', margin: '2px 0 4px' }}>Tune the game</div>
       <p style={{ color: 'var(--ink-dim)', fontSize: 13, margin: '0 0 16px' }}>Editable before kickoff and whenever the game is paused. Changes take effect from the next round.</p>
+
+      <div style={{ fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.08em', marginBottom: 10 }}>ROSTER &nbsp;<span style={{ textTransform: 'none', letterSpacing: 0 }}>(before kickoff only)</span></div>
+      {status === 'setup' ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+          {ROSTERS.map(([k, label, sub]) => (
+            <button key={k} onClick={() => onSetRoster(k)} disabled={rosterBusy}
+              style={{ textAlign: 'left', padding: '8px 14px', borderRadius: 9, cursor: 'pointer',
+                border: `1px solid ${mode === k ? 'var(--cyan)' : 'var(--line)'}`, background: mode === k ? 'rgba(53,208,255,0.12)' : 'transparent' }}>
+              <div className="display" style={{ fontSize: 13, fontWeight: 600, color: mode === k ? 'var(--cyan)' : 'var(--ink)' }}>{label}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-dim)' }}>{sub}</div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, color: 'var(--ink-dim)', marginBottom: 18 }}>Locked during play — current roster: <b style={{ color: 'var(--ink)' }}>{mode}</b></div>
+      )}
 
       <div style={{ fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.08em', marginBottom: 10 }}>DEMAND &amp; ORDERS</div>
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -657,7 +710,7 @@ function BullwhipChart({ history }) {
   );
 }
 
-function Leaderboard({ scores, boardTab, setBoardTab }) {
+function Leaderboard({ scores, boardTab, setBoardTab, mode }) {
   const money = (v) => '$' + Math.round(Number(v || 0)).toLocaleString();
   const rows = scores || [];
 
@@ -673,7 +726,9 @@ function Leaderboard({ scores, boardTab, setBoardTab }) {
   rows.forEach((s) => { tableAgg[s.table_number] = (tableAgg[s.table_number] || 0) + Number(s.total_cost); });
   const tables = Object.entries(tableAgg).map(([num, cost]) => ({ name: `Table ${num}`, cost })).sort((a, b) => a.cost - b.cost);
 
-  const data = boardTab === 'teams' ? teams : boardTab === 'players' ? players : tables;
+  const allTabs = mode === 'individual' ? [['players', 'Players'], ['tables', 'Tables']] : [['teams', mode === 'pairs' ? 'Pairs' : 'Teams'], ['players', 'Players'], ['tables', 'Tables']];
+  const active = allTabs.some(([k]) => k === boardTab) ? boardTab : allTabs[0][0];
+  const data = active === 'teams' ? teams : active === 'players' ? players : tables;
   const medal = (i) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`);
   const rankColor = (i) => (i === 0 ? 'var(--warn)' : i === 1 ? '#c9d4e3' : i === 2 ? '#e0955b' : 'var(--ink-dim)');
 
@@ -682,11 +737,11 @@ function Leaderboard({ scores, boardTab, setBoardTab }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div className="display" style={{ fontSize: 30, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--ink)' }}>🏆 LEADERBOARD</div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {[['teams', 'Teams'], ['players', 'Players'], ['tables', 'Tables']].map(([k, label]) => (
+          {allTabs.map(([k, label]) => (
             <button key={k} onClick={() => setBoardTab(k)} className="display"
               style={{ padding: '6px 16px', borderRadius: 8, fontSize: 12, letterSpacing: '0.08em', cursor: 'pointer',
-                border: `1px solid ${boardTab === k ? 'var(--cyan)' : 'var(--line)'}`, background: boardTab === k ? 'rgba(53,208,255,0.12)' : 'transparent',
-                color: boardTab === k ? 'var(--cyan)' : 'var(--ink-dim)' }}>{label}</button>
+                border: `1px solid ${active === k ? 'var(--cyan)' : 'var(--line)'}`, background: active === k ? 'rgba(53,208,255,0.12)' : 'transparent',
+                color: active === k ? 'var(--cyan)' : 'var(--ink-dim)' }}>{label}</button>
           ))}
         </div>
       </div>
