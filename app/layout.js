@@ -1,11 +1,17 @@
 import './globals.css';
-import { Chakra_Petch, JetBrains_Mono, Inter } from 'next/font/google';
 import Header from './components/Header';
 
-// Same typography as the OPS in One Word game: Chakra Petch (display), JetBrains Mono (numbers), Inter (body).
-const display = Chakra_Petch({ subsets: ['latin'], weight: ['500','600','700'], variable: '--font-display' });
-const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['500','700'], variable: '--font-mono' });
-const body = Inter({ subsets: ['latin'], weight: ['400','500','600','700'], variable: '--font-body' });
+// Same typography as the OPS in One Word game: Chakra Petch (headings), JetBrains Mono (numbers), Inter (body).
+// Fonts are bundled from npm (@fontsource), so the build never has to download anything from Google.
+import '@fontsource/chakra-petch/latin-500.css';
+import '@fontsource/chakra-petch/latin-600.css';
+import '@fontsource/chakra-petch/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
+import '@fontsource/jetbrains-mono/latin-700.css';
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
 
 export const metadata = {
   title: 'OPSPHERE · Supply Chain Simulation',
@@ -14,7 +20,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${display.variable} ${mono.variable} ${body.variable}`}>
+    <html lang="en">
       <body>
         <Header />
         {children}
