@@ -1,6 +1,18 @@
 import './globals.css';
 import Header from './components/Header';
 
+// Same typography as the OPS in One Word game: Chakra Petch (headings), JetBrains Mono (numbers), Inter (body).
+// Fonts are bundled from npm (@fontsource), so the build never has to download anything from Google.
+import '@fontsource/chakra-petch/latin-500.css';
+import '@fontsource/chakra-petch/latin-600.css';
+import '@fontsource/chakra-petch/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
+import '@fontsource/jetbrains-mono/latin-700.css';
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+
 export const metadata = {
   title: 'OPSPHERE · Supply Chain Simulation',
   description: 'OPSPHERE — Operations Club, IBS',
