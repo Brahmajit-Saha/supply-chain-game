@@ -17,7 +17,7 @@ export default function Header() {
         position: 'fixed', top: 0, left: 0, right: 0, height: 72, zIndex: 50,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         padding: '0 22px',
-        background: 'rgba(10, 7, 20, 0.82)',
+        background: 'rgba(13, 4, 48, 0.88)',
         backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
         borderBottom: '1px solid var(--line)',
       }}
@@ -25,8 +25,10 @@ export default function Header() {
       {/* left — club logo + name */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         {showLogo && (
-          <img src="/logo.png" alt="OPSPHERE" onError={() => setShowLogo(false)}
-            style={{ height: 48, width: 'auto', display: 'block' }} />
+          <div style={{ background: '#F3F1FB', borderRadius: 10, padding: '3px 9px', display: 'flex', alignItems: 'center' }}>
+            <img src="/logo.png" alt="OPSPHERE" onError={() => setShowLogo(false)}
+              style={{ height: 48, width: 'auto', display: 'block' }} />
+          </div>
         )}
         <span className="display" style={{ fontSize: 20, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--ink)' }}>{CLUB_NAME}</span>
       </div>
