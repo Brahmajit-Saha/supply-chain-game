@@ -258,6 +258,6 @@ export default function Play() {
 const fieldLabel = { fontSize: 13, color: 'var(--ink-dim)', display: 'block', marginBottom: 6 };
 function teamOption(sel, full) {
   return { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderRadius: 10,
-    border: `1px solid ${sel ? 'var(--cyan)' : 'var(--line)'}`, background: sel ? 'rgba(53,208,255,0.1)' : 'var(--panel)',
+    border: `1px solid ${sel ? 'var(--cyan)' : 'var(--line)'}`, background: sel ? 'rgba(196,181,253,0.1)' : 'var(--panel)',
     color: full ? 'var(--ink-dim)' : 'var(--ink)', fontSize: 15, cursor: full ? 'not-allowed' : 'pointer', opacity: full ? 0.5 : 1, width: '100%', textAlign: 'left' };
 }

@@ -17,7 +17,7 @@ const WARN_MSG = {
 function colorFor(key) {
   if (!key) return '#d29922';
   if (key.startsWith('surge')) return '#d29922';
-  if (key.startsWith('slump')) return '#58a6ff';
+  if (key.startsWith('slump')) return '#B9A6FF';
   return '#f85149'; // shutdown
 }
 function banner(color) {

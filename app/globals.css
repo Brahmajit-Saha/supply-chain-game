@@ -5,32 +5,32 @@
    =================================================================== */
 :root {
   /* legacy tokens (existing screens) */
-  --bg: #16122c;
-  --bg-glow: #34265f;
-  --surface: #1a1333;
-  --surface-2: #241a45;
-  --border: #352a5f;
-  --text: #ece9f5;
-  --text-muted: #a79fc4;
+  --bg: #150842;
+  --bg-glow: #3B1F96;
+  --surface: #1C0B55;        /* OPSPHERE brand navy */
+  --surface-2: #271272;
+  --border: #3D2C8A;
+  --text: #F3F0FF;
+  --text-muted: #A9A0D6;
   --primary: #4F24B2;
-  --primary-hover: #5f30c9;
-  --accent: #34a8ff;
+  --primary-hover: #6234C9;
+  --accent: #B9A6FF;
   --success: #3fb950;
   --danger: #f85149;
 
   /* HUD design layer (new screens) */
-  --void: #0a0714;
-  --panel: #17122e;
-  --panel-2: #1f1846;
-  --line: #302655;
-  --violet: #7c4dff;
-  --violet-2: #9d7bff;
-  --cyan: #35d0ff;
+  --void: #0D0430;
+  --panel: #1C0B55;
+  --panel-2: #271272;
+  --line: #3D2C8A;
+  --violet: #8F6BFF;
+  --violet-2: #B9A6FF;
+  --cyan: #C4B5FD;           /* soft lavender highlight (name kept for compatibility) */
   --good: #3fe08f;
   --warn: #ffb23e;
   --bad: #ff4d6d;
-  --ink: #f0edff;
-  --ink-dim: #9a91c4;
+  --ink: #F3F0FF;
+  --ink-dim: #A9A0D6;
 }
 
 * { box-sizing: border-box; }
@@ -61,7 +61,7 @@ body::before {
   background: var(--surface); color: var(--text); font-size: 15px; outline: none;
 }
 .input:focus { border-color: var(--primary); }
-.input::placeholder { color: #6f6690; }
+.input::placeholder { color: #7B72B0; }
 
 .btn { padding: 12px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; }
 .btn-primary { background: var(--primary); color: #fff; }

@@ -253,7 +253,7 @@ export default function Admin() {
         {['live', 'scoreboard'].map((v) => (
           <button key={v} onClick={() => setView(v)} className="display"
             style={{ padding: '8px 20px', borderRadius: 10, letterSpacing: '0.1em', fontWeight: 600, cursor: 'pointer', fontSize: 13,
-              border: `1px solid ${view === v ? 'var(--cyan)' : 'var(--line)'}`, background: view === v ? 'rgba(53,208,255,0.12)' : 'transparent',
+              border: `1px solid ${view === v ? 'var(--cyan)' : 'var(--line)'}`, background: view === v ? 'rgba(196,181,253,0.12)' : 'transparent',
               color: view === v ? 'var(--cyan)' : 'var(--ink-dim)' }}>
             {v === 'live' ? 'LIVE BOARD' : 'SCOREBOARD'}
           </button>
@@ -441,13 +441,13 @@ export default function Admin() {
 
 // ---------- Excel export helpers ----------
 const ROLES4 = ['Retailer', 'Wholesaler', 'Distributor', 'Factory'];
-const ROLE_COLORS = { Retailer: '#35d0ff', Wholesaler: '#7c4dff', Distributor: '#3fe08f', Factory: '#ffb23e' };
+const ROLE_COLORS = { Retailer: '#C4B5FD', Wholesaler: '#8F6BFF', Distributor: '#3fe08f', Factory: '#ffb23e' };
 
 function bullwhipPNG(orders, table, maxR) {
   const W = 760, H = 380, pl = 52, pr = 20, pt = 34, pb = 46;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d');
-  g.fillStyle = '#0f0a1f'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#0D0430'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#f0edff'; g.font = 'bold 15px sans-serif';
   g.fillText(`Bullwhip — Table ${table}  (order quantity vs. customer demand)`, pl, 20);
 
@@ -462,7 +462,7 @@ function bullwhipPNG(orders, table, maxR) {
   const X = (r) => (maxR > 1 ? pl + ((r - 1) / (maxR - 1)) * (W - pl - pr) : pl);
   const Y = (v) => pt + (1 - v / maxY) * (H - pt - pb);
 
-  g.strokeStyle = '#2b2350'; g.lineWidth = 1; g.fillStyle = '#9a91c4'; g.font = '11px monospace';
+  g.strokeStyle = '#3D2C8A'; g.lineWidth = 1; g.fillStyle = '#A9A0D6'; g.font = '11px monospace';
   for (let i = 0; i <= 4; i++) { const v = Math.round((maxY * i) / 4); const y = Y(v); g.beginPath(); g.moveTo(pl, y); g.lineTo(W - pr, y); g.stroke(); g.fillText(String(v), 10, y + 4); }
   for (let r = 1; r <= maxR; r++) if (r === 1 || r === maxR || r % 5 === 0) g.fillText(String(r), X(r) - 5, H - 22);
 
@@ -585,7 +585,7 @@ function GameSettings({ settings, onSave, busy, msg, mode, status, onSetRoster, 
           {ROSTERS.map(([k, label, sub]) => (
             <button key={k} onClick={() => onSetRoster(k)} disabled={rosterBusy}
               style={{ textAlign: 'left', padding: '8px 14px', borderRadius: 9, cursor: 'pointer',
-                border: `1px solid ${mode === k ? 'var(--cyan)' : 'var(--line)'}`, background: mode === k ? 'rgba(53,208,255,0.12)' : 'transparent' }}>
+                border: `1px solid ${mode === k ? 'var(--cyan)' : 'var(--line)'}`, background: mode === k ? 'rgba(196,181,253,0.12)' : 'transparent' }}>
               <div className="display" style={{ fontSize: 13, fontWeight: 600, color: mode === k ? 'var(--cyan)' : 'var(--ink)' }}>{label}</div>
               <div style={{ fontSize: 11, color: 'var(--ink-dim)' }}>{sub}</div>
             </button>
@@ -629,8 +629,8 @@ function BullwhipChart({ history }) {
     setPick(m === 'table' ? '1' : m === 'role' ? 'Retailer' : (teamNames[0] || ''));
   }
 
-  const COLORS = { Retailer: '#35d0ff', Wholesaler: '#7c4dff', Distributor: '#3fe08f', Factory: '#ffb23e' };
-  const TCOL = ['#35d0ff', '#7c4dff', '#3fe08f', '#ffb23e'];
+  const COLORS = { Retailer: '#C4B5FD', Wholesaler: '#8F6BFF', Distributor: '#3fe08f', Factory: '#ffb23e' };
+  const TCOL = ['#C4B5FD', '#8F6BFF', '#3fe08f', '#ffb23e'];
   const demand = {};
   rows.forEach((r) => { if (r.customer_demand != null) demand[r.round_number] = r.customer_demand; });
 
@@ -668,7 +668,7 @@ function BullwhipChart({ history }) {
           {[['table', 'By table'], ['role', 'By role'], ['team', 'By team']].map(([k, label]) => (
             <button key={k} onClick={() => changeMode(k)} className="display"
               style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, letterSpacing: '0.06em', cursor: 'pointer',
-                border: `1px solid ${mode === k ? 'var(--cyan)' : 'var(--line)'}`, background: mode === k ? 'rgba(53,208,255,0.12)' : 'transparent',
+                border: `1px solid ${mode === k ? 'var(--cyan)' : 'var(--line)'}`, background: mode === k ? 'rgba(196,181,253,0.12)' : 'transparent',
                 color: mode === k ? 'var(--cyan)' : 'var(--ink-dim)' }}>{label}</button>
           ))}
           <select value={pick} onChange={(e) => setPick(e.target.value)} className="input" style={{ width: 'auto', padding: '6px 12px' }}>
@@ -685,11 +685,11 @@ function BullwhipChart({ history }) {
           <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
             {yTicks.map((v, i) => (
               <g key={i}>
-                <line x1={pl} y1={Y(v)} x2={W - pr} y2={Y(v)} stroke="#2b2350" strokeWidth="1" />
-                <text x={pl - 8} y={Y(v) + 4} textAnchor="end" fill="#9a91c4" fontSize="11" fontFamily="monospace">{v}</text>
+                <line x1={pl} y1={Y(v)} x2={W - pr} y2={Y(v)} stroke="#3D2C8A" strokeWidth="1" />
+                <text x={pl - 8} y={Y(v) + 4} textAnchor="end" fill="#A9A0D6" fontSize="11" fontFamily="monospace">{v}</text>
               </g>
             ))}
-            {xTicks.map((r) => (<text key={r} x={X(r)} y={H - 12} textAnchor="middle" fill="#9a91c4" fontSize="11" fontFamily="monospace">{r}</text>))}
+            {xTicks.map((r) => (<text key={r} x={X(r)} y={H - 12} textAnchor="middle" fill="#A9A0D6" fontSize="11" fontFamily="monospace">{r}</text>))}
             {all.map((s, i) => s.points.length > 0 && (
               <polyline key={i} fill="none" stroke={s.color} strokeWidth={s.dashed ? 2 : 2.5}
                 strokeDasharray={s.dashed ? '5 4' : undefined} opacity={s.dashed ? 0.85 : 1}
@@ -740,7 +740,7 @@ function Leaderboard({ scores, boardTab, setBoardTab, mode }) {
           {allTabs.map(([k, label]) => (
             <button key={k} onClick={() => setBoardTab(k)} className="display"
               style={{ padding: '6px 16px', borderRadius: 8, fontSize: 12, letterSpacing: '0.08em', cursor: 'pointer',
-                border: `1px solid ${active === k ? 'var(--cyan)' : 'var(--line)'}`, background: active === k ? 'rgba(53,208,255,0.12)' : 'transparent',
+                border: `1px solid ${active === k ? 'var(--cyan)' : 'var(--line)'}`, background: active === k ? 'rgba(196,181,253,0.12)' : 'transparent',
                 color: active === k ? 'var(--cyan)' : 'var(--ink-dim)' }}>{label}</button>
           ))}
         </div>
